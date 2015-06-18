@@ -607,6 +607,18 @@ In contrast to AngelScript modules, which exist as separate entities and do not 
 
 After that, the functions in the script file are available for calling. Use \ref LuaScript::GetFunction "GetFunction()" to get a Lua function by name. This returns a LuaFunction object, on which you should call \ref LuaFunction::BeginCall "BeginCall()" first, followed by pushing the function parameters if any, and finally execute the function with \ref LuaFunction::EndCall "EndCall()".
 
+\subsection LuaScripting_Debugging Debugging script files
+
+Debugging Lua scripts embedded in an application can be done by attaching to a remote debugger, after first injecting a client into the application (for example, see <a href="https://wiki.eclipse.org/LDT/User_Area/User_Guides/User_Guide_1.2#Attach_session">eclipse LDT's remote debugger</a>). 
+
+However, Lua script files in Urho3D are loaded into the interpreter via Urho3D's resource cache, which loads the script file into a memory buffer before passing that buffer to the interpreter. This is good for performance and cross platform compatibility, but means that the source file is not available to debuggers and so, for example, breakpoints may not work and the code cannot be meaningfully stepped through.
+
+For a single script that you wish to step through, you can use \ref LuaScript::ExecuteRawFile "ExecuteRawFile()", which will load the script from the file system directly into the Lua interpreter, making the source available to debuggers that rely on it. There are a couple of caveats with this: 
+- The file has has to be on the file system, within a resource directory, and not packaged.
+- If the script uses `require()` to import a second script, then that second script will not be available for the debugger in the same way, since internally the second script is passed to Lua via the resource cache.
+
+To get around the second caveat, and avoid changing method calls, use the CMake flag `URHO3D_LUA_RAW_SCRIPT_LOADER`.  This will force Urho3D to attempt to load scripts from the file system by default, before falling back on the resource cache.  You can then use \ref LuaScript::ExecuteFile "ExecuteFile()", as above, and disable the CMake option for production if required.
+
 \section LuaScripting_ScriptObjects Script objects
 
 By using the LuaScriptInstance component, Lua script objects can be added to scene nodes. After the component has been created, there are two ways to specify the object to instantiate: either specifying both the script file name and the object class name, in which case the script file is loaded and executed first, or specifying only the class name, in which case the Lua code containing the class definition must already have been executed. An example of creating a script object in C++ from the LuaIntegration sample, where a class called Rotator is instantiated from the script file Rotator.lua:
@@ -1174,7 +1186,7 @@ The available commands are:
 
 - clear: Clear any of color, depth and stencil. Color clear can optionally use the fog color from the Zone visible at the far clip distance.
 - scenepass: Render scene objects whose \ref Materials "material technique" contains the specified pass. Will either be front-to-back ordered with state sorting, or back-to-front ordered with no state sorting. For deferred rendering, object lightmasks can be optionally marked to the stencil buffer. Vertex lights can optionally be handled during a pass, if it has the necessary shader combinations. Textures global to the pass can be bound to free texture units; these can either be the viewport, a named rendertarget, or a texture resource identified with its pathname.
-- quad: Render a viewport-sized quad using the specified shaders and compilation defines. Textures can be bound and additionally shader parameters can be specified.
+- quad: Render a viewport-sized quad using the specified shaders and compilation defines. Textures can be bound and additionally shader parameters and the blend mode (default=replace) can be specified.
 - forwardlights: Render per-pixel forward lighting for opaque objects with the specified pass name. Shadow maps are also rendered as necessary.
 - lightvolumes: Render deferred light volumes using the specified shaders. G-buffer textures can be bound as necessary.
 - renderui: Render the UI into the output rendertarget. Using this will cause the default %UI render to the backbuffer to be skipped.
@@ -1196,7 +1208,7 @@ The render path XML definition looks like this:
         <output index="2" name="RTName3" />
         <texture unit="unit" name="viewport|RTName|TextureName" />
     </command>
-    <command type="quad" vs="VertexShaderName" ps="PixelShaderName" vsdefines="DEFINE1 DEFINE2" psdefines="DEFINE3 DEFINE4" output="viewport|RTName" depthstencil="DSName" />
+    <command type="quad" vs="VertexShaderName" ps="PixelShaderName" vsdefines="DEFINE1 DEFINE2" psdefines="DEFINE3 DEFINE4" blend="replace|add|multiply|alpha|addalpha|premulalpha|invdestalpha|subtract|subtractalpha" output="viewport|RTName" depthstencil="DSName" />
         <texture unit="unit" name="viewport|RTName|TextureName" />
         <parameter name="ParameterName" value="x y z w" />
     </command>

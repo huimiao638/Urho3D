@@ -238,7 +238,8 @@ void DynamicNavigationMesh::RegisterObject(Context* context)
     context->RegisterFactory<DynamicNavigationMesh>(NAVIGATION_CATEGORY);
 
     COPY_BASE_ATTRIBUTES(NavigationMesh);
-    ATTRIBUTE("Max Obstacles", unsigned, maxObstacles_, DEFAULT_MAX_OBSTACLES, AM_DEFAULT);
+    ACCESSOR_ATTRIBUTE("Max Obstacles", GetMaxObstacles, SetMaxObstacles, unsigned, DEFAULT_MAX_OBSTACLES, AM_DEFAULT);
+    ACCESSOR_ATTRIBUTE("Draw Obstacles", GetDrawObstacles, SetDrawObstacles, bool, false, AM_DEFAULT);
 }
 
 bool DynamicNavigationMesh::Build()
