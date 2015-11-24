@@ -22,6 +22,12 @@
 
 #pragma once
 
+#ifdef URHO3D_IS_BUILDING
+#include "Urho3D.h"
+#else
+#include <Urho3D/Urho3D.h>
+#endif
+
 namespace Urho3D
 {
 
@@ -33,12 +39,14 @@ public:
     Mutex();
     /// Destruct.
     ~Mutex();
-    
+
     /// Acquire the mutex. Block if already acquired.
     void Acquire();
+    /// Try to acquire the mutex without locking. Return true if successful.
+    bool TryAcquire();
     /// Release the mutex.
     void Release();
-    
+
 private:
     /// Mutex handle.
     void* handle_;
@@ -52,13 +60,13 @@ public:
     MutexLock(Mutex& mutex);
     /// Destruct. Release the mutex.
     ~MutexLock();
-    
+
 private:
     /// Prevent copy construction.
     MutexLock(const MutexLock& rhs);
     /// Prevent assignment.
-    MutexLock& operator = (const MutexLock& rhs);
-    
+    MutexLock& operator =(const MutexLock& rhs);
+
     /// Mutex reference.
     Mutex& mutex_;
 };

@@ -30,8 +30,9 @@ end
 function CreateInstructions()
     -- Construct new Text object, set string to display and font to use
     local instructionText = ui.root:CreateChild("Text")
-    instructionText:SetText("Drag on the buttons to move them around.\nMulti- button drag also supported.")
+    instructionText:SetText("Drag on the buttons to move them around.\nTouch input allows also multi-drag.")
     instructionText:SetFont(cache:GetResource("Font", "Fonts/Anonymous Pro.ttf"), 15)
+    instructionText.textAlignment = HA_CENTER
 
     -- Position the text relative to the screen center
     instructionText.horizontalAlignment = HA_CENTER
@@ -92,31 +93,31 @@ function SubscribeToEvents()
 end
 
 function HandleDragBegin(eventType, eventData)
-    local element = eventData:GetPtr("UIElement", "Element")
+    local element = eventData["Element"]:GetPtr("UIElement")
 
-    local lx = eventData:GetInt("X")
-    local ly = eventData:GetInt("Y")
+    local lx = eventData["X"]:GetInt()
+    local ly = eventData["Y"]:GetInt()
 
     local p = element.position
     element:SetVar(VAR_START, Variant(p))
     element:SetVar(VAR_DELTA, Variant(Vector2(p.x - lx, p.y - ly)))
 
-    local buttons = eventData:GetInt("Buttons")
+    local buttons = eventData["Buttons"]:GetInt()
     element:SetVar(VAR_BUTTONS, Variant(buttons))
 
     local t = tolua.cast(element:GetChild("Text"), 'Text')
     t:SetText("Drag Begin Buttons: " .. buttons)
 
     t = tolua.cast(element:GetChild("Num Touch"), 'Text')
-    t:SetText("Number of buttons: " .. eventData:GetInt("NumButtons"))
+    t:SetText("Number of buttons: " .. eventData["NumButtons"]:GetInt())
 end
 
 function HandleDragMove(eventType, eventData)
-    local element = eventData:GetPtr("UIElement", "Element")
-    local buttons = eventData:GetInt("Buttons")
+    local element = eventData["Element"]:GetPtr("UIElement")
+    local buttons = eventData["Buttons"]:GetInt()
     local d = element:GetVar(VAR_DELTA):GetVector2()
-    local X = eventData:GetInt("X") + d.x
-    local Y = eventData:GetInt("Y") + d.y
+    local X = eventData["X"]:GetInt() + d.x
+    local Y = eventData["Y"]:GetInt() + d.y
     local BUTTONS = element:GetVar(VAR_BUTTONS):GetInt()
 
     local t = tolua.cast(element:GetChild("Event Touch"), 'Text')
@@ -126,7 +127,7 @@ function HandleDragMove(eventType, eventData)
 end
 
 function HandleDragCancel(eventType, eventData)
-    local element = eventData:GetPtr("UIElement", "Element")
+    local element = eventData["Element"]:GetPtr("UIElement")
     local P = element:GetVar(VAR_START):GetIntVector2()
     element:SetPosition(P)
 end
@@ -163,5 +164,5 @@ function GetScreenJoystickPatchString()
         "        <attribute name=\"Is Visible\" value=\"false\" />" ..
         "    </add>" ..
         "</patch>"
-        
+
 end

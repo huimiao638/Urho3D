@@ -55,8 +55,20 @@ endif ()
 # Define target name
 set (TARGET_NAME tolua++)
 
+# Define generated source files
+if (URHO3D_UPDATE_SOURCE_TREE)
+    set (UPDATE_COMMAND COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_BINARY_DIR}/generated/toluabind.c ${CMAKE_CURRENT_SOURCE_DIR}/toluabind.c)
+endif ()
+file (GLOB TOLUA lua/*.lua)
+add_custom_command (OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/toluabind.c
+    COMMAND ${CMAKE_BINARY_DIR}/bin/tool/tolua++ -o ${CMAKE_CURRENT_BINARY_DIR}/generated/toluabind.c -H ${CMAKE_CURRENT_BINARY_DIR}/generated/toluabind.h -n tolua tolua_scons.pkg 2>${NULL_DEVICE} || ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/toluabind.c ${CMAKE_CURRENT_BINARY_DIR}/generated/toluabind.c
+    ${UPDATE_COMMAND}
+    DEPENDS ${TOLUA} tolua_scons.pkg
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    COMMENT "Generating toluabind.c and toluabind.h")
+
 # Define source files
-define_source_files (GLOB_CPP_PATTERNS *.c)
+define_source_files (EXTRA_CPP_FILES tolua.c ${CMAKE_CURRENT_BINARY_DIR}/generated/toluabind.c)
 
 # Define dependency libs
 set (LIBS toluapp Lua${JIT})
@@ -65,11 +77,8 @@ if (NOT MSVC)
 endif ()
 set (INCLUDE_DIRS ../../include ../../../../ThirdParty/Lua${JIT}/src)
 
-# All tools must be natively built and output to bin/tool subdir to differentiate them from platform-specific binaries in the bin directory
-set_output_directories (${CMAKE_BINARY_DIR}/bin/tool RUNTIME PDB)
-if (DEST_RUNTIME_DIR STREQUAL bin)
-    set (DEST_RUNTIME_DIR bin/tool)
-endif ()
+# All tools must be natively built and output to bin/tool subdir to differentiate them from target platfrom binaries in the bin directory
+set_tool_output_directories ()
 
 # Setup target
 if (APPLE)

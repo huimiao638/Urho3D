@@ -35,17 +35,17 @@ class ShaderVariation;
 /// Utility class for collecting used shader combinations during runtime for precaching.
 class URHO3D_API ShaderPrecache : public Object
 {
-    OBJECT(ShaderPrecache);
-    
+    URHO3D_OBJECT(ShaderPrecache, Object);
+
 public:
     /// Construct and begin collecting shader combinations. Load existing combinations from XML if the file exists.
     ShaderPrecache(Context* context, const String& fileName);
     /// Destruct. Write the collected shaders to XML.
     ~ShaderPrecache();
-    
+
     /// Collect a shader combination. Called by Graphics when shaders have been set.
     void StoreShaders(ShaderVariation* vs, ShaderVariation* ps);
-    
+
     /// Load shaders from an XML file.
     static void LoadShaders(Graphics* graphics, Deserializer& source);
 

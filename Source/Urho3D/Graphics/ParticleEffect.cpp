@@ -20,10 +20,12 @@
 // THE SOFTWARE.
 //
 
+#include "../Precompiled.h"
+
 #include "../Core/Context.h"
-#include "../IO/Log.h"
 #include "../Graphics/Material.h"
 #include "../Graphics/ParticleEffect.h"
+#include "../IO/Log.h"
 #include "../Resource/ResourceCache.h"
 #include "../Resource/XMLFile.h"
 
@@ -96,14 +98,14 @@ bool ParticleEffect::BeginLoad(Deserializer& source)
     XMLFile file(context_);
     if (!file.Load(source))
     {
-        LOGERROR("Load particle effect file failed");
+        URHO3D_LOGERROR("Load particle effect file failed");
         return false;
     }
 
     XMLElement rootElem = file.GetRoot();
     if (!rootElem)
     {
-        LOGERROR("Particle emitter parameter file does not have a valid root element");
+        URHO3D_LOGERROR("Particle emitter parameter file does not have a valid root element");
         return false;
     }
 
@@ -149,7 +151,7 @@ bool ParticleEffect::BeginLoad(Deserializer& source)
     }
 
     if (rootElem.HasChild("numparticles"))
-        SetNumParticles(rootElem.GetChild("numparticles").GetInt("value"));
+        SetNumParticles((unsigned)rootElem.GetChild("numparticles").GetInt("value"));
 
     if (rootElem.HasChild("updateinvisible"))
         updateInvisible_ = rootElem.GetChild("updateinvisible").GetBool("enable");
@@ -180,7 +182,7 @@ bool ParticleEffect::BeginLoad(Deserializer& source)
         else if (type == "sphere")
             emitterType_ = EMITTER_SPHERE;
         else
-            LOGERROR("Unknown particle emitter type " + type);
+            URHO3D_LOGERROR("Unknown particle emitter type " + type);
     }
 
     if (rootElem.HasChild("emittersize"))
@@ -253,7 +255,8 @@ bool ParticleEffect::BeginLoad(Deserializer& source)
     if (rootElem.HasChild("colorfade"))
     {
         Vector<ColorFrame> fades;
-        for (XMLElement colorFadeElem = rootElem.GetChild("colorfade"); colorFadeElem; colorFadeElem = colorFadeElem.GetNext("colorfade"))
+        for (XMLElement colorFadeElem = rootElem.GetChild("colorfade"); colorFadeElem;
+             colorFadeElem = colorFadeElem.GetNext("colorfade"))
             fades.Push(ColorFrame(colorFadeElem.GetColor("color"), colorFadeElem.GetFloat("time")));
 
         SetColorFrames(fades);
@@ -276,6 +279,8 @@ bool ParticleEffect::BeginLoad(Deserializer& source)
         SetTextureFrames(animations);
     }
 
+    // Note: not accurate
+    SetMemoryUse(source.GetSize());
     return true;
 }
 
@@ -328,7 +333,7 @@ bool ParticleEffect::Load(const XMLElement& source)
 
     if (source.IsNull())
     {
-        LOGERROR("Can not load particle effect from null XML element");
+        URHO3D_LOGERROR("Can not load particle effect from null XML element");
         return false;
     }
 
@@ -338,7 +343,7 @@ bool ParticleEffect::Load(const XMLElement& source)
     }
 
     if (source.HasChild("numparticles"))
-        SetNumParticles(source.GetChild("numparticles").GetInt("value"));
+        SetNumParticles((unsigned)source.GetChild("numparticles").GetInt("value"));
 
     if (source.HasChild("updateinvisible"))
         updateInvisible_ = source.GetChild("updateinvisible").GetBool("enable");
@@ -369,7 +374,7 @@ bool ParticleEffect::Load(const XMLElement& source)
         else if (type == "sphere")
             emitterType_ = EMITTER_SPHERE;
         else
-            LOGERROR("Unknown particle emitter type " + type);
+            URHO3D_LOGERROR("Unknown particle emitter type " + type);
     }
 
     if (source.HasChild("emittersize"))
@@ -442,7 +447,8 @@ bool ParticleEffect::Load(const XMLElement& source)
     if (source.HasChild("colorfade"))
     {
         Vector<ColorFrame> fades;
-        for (XMLElement colorFadeElem = source.GetChild("colorfade"); colorFadeElem; colorFadeElem = colorFadeElem.GetNext("colorfade"))
+        for (XMLElement colorFadeElem = source.GetChild("colorfade"); colorFadeElem;
+             colorFadeElem = colorFadeElem.GetNext("colorfade"))
             fades.Push(ColorFrame(colorFadeElem.GetColor("color"), colorFadeElem.GetFloat("time")));
 
         SetColorFrames(fades);
@@ -481,7 +487,7 @@ bool ParticleEffect::Save(XMLElement& dest) const
 {
     if (dest.IsNull())
     {
-        LOGERROR("Can not save particle effect to null XML element");
+        URHO3D_LOGERROR("Can not save particle effect to null XML element");
         return false;
     }
 
@@ -589,7 +595,7 @@ void ParticleEffect::SetMaterial(Material* material)
 
 void ParticleEffect::SetNumParticles(unsigned num)
 {
-    numParticles_ = Max(0, num);
+    numParticles_ = (unsigned)Max(0, num);
 }
 
 void ParticleEffect::SetUpdateInvisible(bool enable)
@@ -762,7 +768,7 @@ void ParticleEffect::RemoveColorFrame(unsigned index)
 {
     unsigned s = colorFrames_.Size();
 
-    for (unsigned i = index; i < s - 1 ; i++)
+    for (unsigned i = index; i < s - 1; i++)
     {
         colorFrames_[i].color_ = colorFrames_[i + 1].color_;
         colorFrames_[i].time_ = colorFrames_[i + 1].time_;
@@ -779,7 +785,7 @@ void ParticleEffect::SetColorFrames(const Vector<ColorFrame>& colorFrames)
 void ParticleEffect::SetColorFrame(unsigned index, const ColorFrame& colorFrame)
 {
     if (colorFrames_.Size() < index + 1)
-         colorFrames_.Resize(index + 1);
+        colorFrames_.Resize(index + 1);
     colorFrames_[index] = colorFrame;
 }
 
@@ -787,7 +793,7 @@ void ParticleEffect::SetNumColorFrames(unsigned number)
 {
     unsigned s = colorFrames_.Size();
     if (s != number)
-         colorFrames_.Resize(number);
+        colorFrames_.Resize(number);
 }
 
 void ParticleEffect::SortColorFrames()
@@ -832,7 +838,7 @@ void ParticleEffect::RemoveTextureFrame(unsigned index)
 {
     unsigned s = textureFrames_.Size();
 
-    for (unsigned i = index; i < s - 1 ; i++)
+    for (unsigned i = index; i < s - 1; i++)
     {
         textureFrames_[i].uv_ = textureFrames_[i + 1].uv_;
         textureFrames_[i].time_ = textureFrames_[i + 1].time_;
@@ -857,7 +863,7 @@ void ParticleEffect::SetNumTextureFrames(unsigned number)
 {
     unsigned s = textureFrames_.Size();
     if (s != number)
-         textureFrames_.Resize(number);
+        textureFrames_.Resize(number);
 }
 
 void ParticleEffect::SortTextureFrames()
@@ -880,11 +886,8 @@ const TextureFrame* ParticleEffect::GetTextureFrame(unsigned index) const
 
 Vector3 ParticleEffect::GetRandomDirection() const
 {
-    return Vector3(
-        Lerp(directionMin_.x_, directionMax_.x_, Random(1.0f)),
-        Lerp(directionMin_.y_, directionMax_.y_, Random(1.0f)),
-        Lerp(directionMin_.z_, directionMax_.z_, Random(1.0f))
-        );
+    return Vector3(Lerp(directionMin_.x_, directionMax_.x_, Random(1.0f)), Lerp(directionMin_.y_, directionMax_.y_, Random(1.0f)),
+        Lerp(directionMin_.z_, directionMax_.z_, Random(1.0f)));
 }
 
 Vector2 ParticleEffect::GetRandomSize() const

@@ -39,7 +39,9 @@ class AttributeAnimationInfo : public ValueAnimationInfo
 {
 public:
     /// Construct.
-    AttributeAnimationInfo(Animatable* animatable, const AttributeInfo& attributeInfo, ValueAnimation* attributeAnimation, WrapMode wrapMode, float speed);
+    AttributeAnimationInfo
+        (Animatable* animatable, const AttributeInfo& attributeInfo, ValueAnimation* attributeAnimation, WrapMode wrapMode,
+            float speed);
     /// Copy construct.
     AttributeAnimationInfo(const AttributeAnimationInfo& other);
     /// Destruct.
@@ -60,7 +62,7 @@ private:
 /// Base class for animatable object, an animatable object can be set animation on it's attributes, or can be set an object animation to it.
 class URHO3D_API Animatable : public Serializable
 {
-    OBJECT(Animatable);
+    URHO3D_OBJECT(Animatable, Serializable);
 
 public:
     /// Construct.
@@ -75,19 +77,30 @@ public:
     /// Save as XML data. Return true if successful.
     virtual bool SaveXML(XMLElement& dest) const;
 
-    /// Set animation enabled.
-    void SetAnimationEnabled(bool enable) { animationEnabled_ = enable; }
+    /// Set automatic update of animation, default true.
+    void SetAnimationEnabled(bool enable);
+    /// Set time position of all attribute animations or an object animation manually. Automatic update should be disabled in this case.
+    void SetAnimationTime(float time);
+
     /// Set object animation.
     void SetObjectAnimation(ObjectAnimation* objectAnimation);
     /// Set attribute animation.
-    void SetAttributeAnimation(const String& name, ValueAnimation* attributeAnimation, WrapMode wrapMode = WM_LOOP, float speed = 1.0f);
+    void SetAttributeAnimation
+        (const String& name, ValueAnimation* attributeAnimation, WrapMode wrapMode = WM_LOOP, float speed = 1.0f);
     /// Set attribute animation wrap mode.
     void SetAttributeAnimationWrapMode(const String& name, WrapMode wrapMode);
     /// Set attribute animation speed.
     void SetAttributeAnimationSpeed(const String& name, float speed);
+    /// Set attribute animation time position manually. Automatic update should be disabled in this case.
+    void SetAttributeAnimationTime(const String& name, float time);
+    /// Remove object animation. Same as calling SetObjectAnimation with a null pointer.
+    void RemoveObjectAnimation();
+    /// Remove attribute animation. Same as calling SetAttributeAnimation with a null pointer.
+    void RemoveAttributeAnimation(const String& name);
 
     /// Return animation enabled.
     bool GetAnimationEnabled() const { return animationEnabled_; }
+
     /// Return object animation.
     ObjectAnimation* GetObjectAnimation() const;
     /// Return attribute animation.
@@ -96,6 +109,8 @@ public:
     WrapMode GetAttributeAnimationWrapMode(const String& name) const;
     /// Return attribute animation speed.
     float GetAttributeAnimationSpeed(const String& name) const;
+    /// Return attribute animation time position.
+    float GetAttributeAnimationTime(const String& name) const;
 
     /// Set object animation attribute.
     void SetObjectAnimationAttr(const ResourceRef& value);
@@ -107,8 +122,10 @@ protected:
     virtual void OnAttributeAnimationAdded() = 0;
     /// Handle attribute animation removed.
     virtual void OnAttributeAnimationRemoved() = 0;
+    /// Find target of an attribute animation from object hierarchy by name.
+    virtual Animatable* FindAttributeAnimationTarget(const String& name, String& outName);
     /// Set object attribute animation internal.
-    virtual void SetObjectAttributeAnimation(const String& name, ValueAnimation* attributeAnimation, WrapMode wrapMode, float speed);
+    void SetObjectAttributeAnimation(const String& name, ValueAnimation* attributeAnimation, WrapMode wrapMode, float speed);
     /// Handle object animation added.
     void OnObjectAnimationAdded(ObjectAnimation* objectAnimation);
     /// Handle object animation removed.

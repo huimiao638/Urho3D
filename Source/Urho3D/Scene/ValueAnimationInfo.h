@@ -22,8 +22,8 @@
 
 #pragma once
 
-#include "../Scene/AnimationDefs.h"
 #include "../Container/RefCounted.h"
+#include "../Scene/AnimationDefs.h"
 
 namespace Urho3D
 {
@@ -45,19 +45,29 @@ public:
     /// Destruct.
     ~ValueAnimationInfo();
 
-    /// Update. Return true when the animation is finished. No-op when the target object is not defined.
+    /// Advance time position and apply. Return true when the animation is finished. No-op when the target object is not defined.
     bool Update(float timeStep);
+    /// Set time position and apply. Return true when the animation is finished. No-op when the target object is not defined.
+    bool SetTime(float time);
+
     /// Set wrap mode.
     void SetWrapMode(WrapMode wrapMode) { wrapMode_ = wrapMode; }
+
     /// Set speed.
     void SetSpeed(float speed) { speed_ = speed; }
 
     /// Return target object.
     Object* GetTarget() const;
+
     /// Return animation.
     ValueAnimation* GetAnimation() const { return animation_; }
+
     /// Return wrap mode.
     WrapMode GetWrapMode() const { return wrapMode_; }
+
+    /// Return time position.
+    float GetTime() const { return currentTime_; }
+
     /// Return speed.
     float GetSpeed() const { return speed_; }
 

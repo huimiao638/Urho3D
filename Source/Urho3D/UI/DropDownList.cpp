@@ -20,11 +20,13 @@
 // THE SOFTWARE.
 //
 
+#include "../Precompiled.h"
+
 #include "../Core/Context.h"
-#include "../UI/DropDownList.h"
 #include "../Input/InputEvents.h"
-#include "../UI/ListView.h"
 #include "../IO/Log.h"
+#include "../UI/DropDownList.h"
+#include "../UI/ListView.h"
 #include "../UI/Text.h"
 #include "../UI/UI.h"
 #include "../UI/UIEvents.h"
@@ -59,8 +61,8 @@ DropDownList::DropDownList(Context* context) :
     text->SetInternal(true);
     text->SetVisible(false);
 
-    SubscribeToEvent(listView_, E_ITEMCLICKED, HANDLER(DropDownList, HandleItemClicked));
-    SubscribeToEvent(listView_, E_UNHANDLEDKEY, HANDLER(DropDownList, HandleListViewKey));
+    SubscribeToEvent(listView_, E_ITEMCLICKED, URHO3D_HANDLER(DropDownList, HandleItemClicked));
+    SubscribeToEvent(listView_, E_UNHANDLEDKEY, URHO3D_HANDLER(DropDownList, HandleListViewKey));
 }
 
 DropDownList::~DropDownList()
@@ -71,10 +73,10 @@ void DropDownList::RegisterObject(Context* context)
 {
     context->RegisterFactory<DropDownList>(UI_CATEGORY);
 
-    COPY_BASE_ATTRIBUTES(Menu);
-    UPDATE_ATTRIBUTE_DEFAULT_VALUE("Focus Mode", FM_FOCUSABLE_DEFOCUSABLE);
-    ACCESSOR_ATTRIBUTE("Selection", GetSelection, SetSelectionAttr, unsigned, 0, AM_FILE);
-    ACCESSOR_ATTRIBUTE("Resize Popup", GetResizePopup, SetResizePopup, bool, false, AM_FILE);
+    URHO3D_COPY_BASE_ATTRIBUTES(Menu);
+    URHO3D_UPDATE_ATTRIBUTE_DEFAULT_VALUE("Focus Mode", FM_FOCUSABLE_DEFOCUSABLE);
+    URHO3D_ACCESSOR_ATTRIBUTE("Selection", GetSelection, SetSelectionAttr, unsigned, 0, AM_FILE);
+    URHO3D_ACCESSOR_ATTRIBUTE("Resize Popup", GetResizePopup, SetResizePopup, bool, false, AM_FILE);
 }
 
 void DropDownList::ApplyAttributes()
@@ -116,8 +118,8 @@ void DropDownList::OnShowPopup()
     content->UpdateLayout();
     const IntVector2& contentSize = content->GetSize();
     const IntRect& border = popup_->GetLayoutBorder();
-    popup_->SetSize(resizePopup_ ? GetWidth() : contentSize.x_ + border.left_ + border.right_, contentSize.y_ + border.top_ +
-        border.bottom_);
+    popup_->SetSize(resizePopup_ ? GetWidth() : contentSize.x_ + border.left_ + border.right_,
+        contentSize.y_ + border.top_ + border.bottom_);
 
     // Check if popup fits below the button. If not, show above instead
     bool showAbove = false;

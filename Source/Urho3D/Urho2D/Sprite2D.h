@@ -33,7 +33,7 @@ class Texture2D;
 /// Sprite.
 class URHO3D_API Sprite2D : public Resource
 {
-    OBJECT(Sprite2D);
+    URHO3D_OBJECT(Sprite2D, Resource);
 
 public:
     /// Construct.
@@ -61,12 +61,16 @@ public:
 
     /// Return texture.
     Texture2D* GetTexture() const { return texture_; }
+
     /// Return rectangle.
     const IntRect& GetRectangle() const { return rectangle_; }
+
     /// Return hot spot.
     const Vector2& GetHotSpot() const { return hotSpot_; }
+
     /// Return offset.
     const IntVector2& GetOffset() const { return offset_; }
+
     /// Return sprite sheet.
     SpriteSheet2D* GetSpriteSheet() const { return spriteSheet_; }
 

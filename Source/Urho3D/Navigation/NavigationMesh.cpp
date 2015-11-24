@@ -20,17 +20,20 @@
 // THE SOFTWARE.
 //
 
-#ifdef URHO3D_PHYSICS
-#include "../Physics/CollisionShape.h"
-#endif
+#include "../Precompiled.h"
+
 #include "../Core/Context.h"
+#include "../Core/Profiler.h"
 #include "../Graphics/DebugRenderer.h"
 #include "../Graphics/Drawable.h"
-#include "../Navigation/DynamicNavigationMesh.h"
 #include "../Graphics/Geometry.h"
+#include "../Graphics/Model.h"
+#include "../Graphics/StaticModel.h"
+#include "../Graphics/TerrainPatch.h"
 #include "../IO/Log.h"
 #include "../IO/MemoryBuffer.h"
-#include "../Graphics/Model.h"
+#include "../Navigation/CrowdAgent.h"
+#include "../Navigation/DynamicNavigationMesh.h"
 #include "../Navigation/NavArea.h"
 #include "../Navigation/NavBuildData.h"
 #include "../Navigation/Navigable.h"
@@ -38,20 +41,16 @@
 #include "../Navigation/NavigationMesh.h"
 #include "../Navigation/Obstacle.h"
 #include "../Navigation/OffMeshConnection.h"
-#include "../Core/Profiler.h"
+#ifdef URHO3D_PHYSICS
+#include "../Physics/CollisionShape.h"
+#endif
 #include "../Scene/Scene.h"
-#include "../Graphics/StaticModel.h"
-#include "../Graphics/TerrainPatch.h"
-#include "../IO/VectorBuffer.h"
 
 #include <cfloat>
 #include <Detour/DetourNavMesh.h>
 #include <Detour/DetourNavMeshBuilder.h>
 #include <Detour/DetourNavMeshQuery.h>
 #include <Recast/Recast.h>
-
-#include "../Navigation/CrowdAgent.h"
-#include "../Navigation/DetourCrowdManager.h"
 
 #include "../DebugNew.h"
 
@@ -143,24 +142,28 @@ void NavigationMesh::RegisterObject(Context* context)
 {
     context->RegisterFactory<NavigationMesh>(NAVIGATION_CATEGORY);
 
-    ACCESSOR_ATTRIBUTE("Tile Size", GetTileSize, SetTileSize, int, DEFAULT_TILE_SIZE, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Cell Size", GetCellSize, SetCellSize, float, DEFAULT_CELL_SIZE, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Cell Height", GetCellHeight, SetCellHeight, float, DEFAULT_CELL_HEIGHT, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Agent Height", GetAgentHeight, SetAgentHeight, float, DEFAULT_AGENT_HEIGHT, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Agent Radius", GetAgentRadius, SetAgentRadius, float, DEFAULT_AGENT_RADIUS, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Agent Max Climb", GetAgentMaxClimb, SetAgentMaxClimb, float, DEFAULT_AGENT_MAX_CLIMB, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Agent Max Slope", GetAgentMaxSlope, SetAgentMaxSlope, float, DEFAULT_AGENT_MAX_SLOPE, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Region Min Size", GetRegionMinSize, SetRegionMinSize, float, DEFAULT_REGION_MIN_SIZE, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Region Merge Size", GetRegionMergeSize, SetRegionMergeSize, float, DEFAULT_REGION_MERGE_SIZE, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Edge Max Length", GetEdgeMaxLength, SetEdgeMaxLength, float, DEFAULT_EDGE_MAX_LENGTH, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Edge Max Error", GetEdgeMaxError, SetEdgeMaxError, float, DEFAULT_EDGE_MAX_ERROR, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Detail Sample Distance", GetDetailSampleDistance, SetDetailSampleDistance, float, DEFAULT_DETAIL_SAMPLE_DISTANCE, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Detail Sample Max Error", GetDetailSampleMaxError, SetDetailSampleMaxError, float, DEFAULT_DETAIL_SAMPLE_MAX_ERROR, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Bounding Box Padding", GetPadding, SetPadding, Vector3, Vector3::ONE, AM_DEFAULT);
-    MIXED_ACCESSOR_ATTRIBUTE("Navigation Data", GetNavigationDataAttr, SetNavigationDataAttr, PODVector<unsigned char>, Variant::emptyBuffer, AM_FILE | AM_NOEDIT);
-    ENUM_ACCESSOR_ATTRIBUTE("Partition Type", GetPartitionType, SetPartitionType, NavmeshPartitionType, navmeshPartitionTypeNames, NAVMESH_PARTITION_WATERSHED, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Draw OffMeshConnections", GetDrawOffMeshConnections, SetDrawOffMeshConnections, bool, false, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Draw NavAreas", GetDrawNavAreas, SetDrawNavAreas, bool, false, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Tile Size", GetTileSize, SetTileSize, int, DEFAULT_TILE_SIZE, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Cell Size", GetCellSize, SetCellSize, float, DEFAULT_CELL_SIZE, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Cell Height", GetCellHeight, SetCellHeight, float, DEFAULT_CELL_HEIGHT, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Agent Height", GetAgentHeight, SetAgentHeight, float, DEFAULT_AGENT_HEIGHT, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Agent Radius", GetAgentRadius, SetAgentRadius, float, DEFAULT_AGENT_RADIUS, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Agent Max Climb", GetAgentMaxClimb, SetAgentMaxClimb, float, DEFAULT_AGENT_MAX_CLIMB, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Agent Max Slope", GetAgentMaxSlope, SetAgentMaxSlope, float, DEFAULT_AGENT_MAX_SLOPE, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Region Min Size", GetRegionMinSize, SetRegionMinSize, float, DEFAULT_REGION_MIN_SIZE, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Region Merge Size", GetRegionMergeSize, SetRegionMergeSize, float, DEFAULT_REGION_MERGE_SIZE, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Edge Max Length", GetEdgeMaxLength, SetEdgeMaxLength, float, DEFAULT_EDGE_MAX_LENGTH, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Edge Max Error", GetEdgeMaxError, SetEdgeMaxError, float, DEFAULT_EDGE_MAX_ERROR, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Detail Sample Distance", GetDetailSampleDistance, SetDetailSampleDistance, float,
+        DEFAULT_DETAIL_SAMPLE_DISTANCE, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Detail Sample Max Error", GetDetailSampleMaxError, SetDetailSampleMaxError, float,
+        DEFAULT_DETAIL_SAMPLE_MAX_ERROR, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Bounding Box Padding", GetPadding, SetPadding, Vector3, Vector3::ONE, AM_DEFAULT);
+    URHO3D_MIXED_ACCESSOR_ATTRIBUTE("Navigation Data", GetNavigationDataAttr, SetNavigationDataAttr, PODVector<unsigned char>,
+        Variant::emptyBuffer, AM_FILE | AM_NOEDIT);
+    URHO3D_ENUM_ACCESSOR_ATTRIBUTE("Partition Type", GetPartitionType, SetPartitionType, NavmeshPartitionType, navmeshPartitionTypeNames,
+        NAVMESH_PARTITION_WATERSHED, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Draw OffMeshConnections", GetDrawOffMeshConnections, SetDrawOffMeshConnections, bool, false, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Draw NavAreas", GetDrawNavAreas, SetDrawNavAreas, bool, false, AM_DEFAULT);
 }
 
 void NavigationMesh::DrawDebugGeometry(DebugRenderer* debug, bool depthTest)
@@ -192,7 +195,7 @@ void NavigationMesh::DrawDebugGeometry(DebugRenderer* debug, bool depthTest)
                             worldTransform * *reinterpret_cast<const Vector3*>(&tile->verts[poly->verts[(j + 1) % poly->vertCount] * 3]),
                             Color::YELLOW,
                             depthTest
-                            );
+                        );
                     }
                 }
             }
@@ -335,7 +338,7 @@ void NavigationMesh::SetPadding(const Vector3& padding)
 
 bool NavigationMesh::Build()
 {
-    PROFILE(BuildNavigationMesh);
+    URHO3D_PROFILE(BuildNavigationMesh);
 
     // Release existing navigation data and zero the bounding box
     ReleaseNavigationMesh();
@@ -344,7 +347,7 @@ bool NavigationMesh::Build()
         return false;
 
     if (!node_->GetWorldScale().Equals(Vector3::ONE))
-        LOGWARNING("Navigation mesh root node has scaling. Agent parameters may not work as intended");
+        URHO3D_LOGWARNING("Navigation mesh root node has scaling. Agent parameters may not work as intended");
 
     Vector<NavigationGeometryInfo> geometryList;
     CollectGeometries(geometryList);
@@ -361,7 +364,7 @@ bool NavigationMesh::Build()
     boundingBox_.max_ += padding_;
 
     {
-        PROFILE(BuildNavigationMesh);
+        URHO3D_PROFILE(BuildNavigationMesh);
 
         // Calculate number of tiles
         int gridW = 0, gridH = 0;
@@ -371,7 +374,7 @@ bool NavigationMesh::Build()
         numTilesZ_ = (gridH + tileSize_ - 1) / tileSize_;
 
         // Calculate max. number of tiles and polygons, 22 bits available to identify both tile & polygon within tile
-        unsigned maxTiles = NextPowerOfTwo(numTilesX_ * numTilesZ_);
+        unsigned maxTiles = NextPowerOfTwo((unsigned)(numTilesX_ * numTilesZ_));
         unsigned tileBits = 0;
         unsigned temp = maxTiles;
         while (temp > 1)
@@ -380,7 +383,7 @@ bool NavigationMesh::Build()
             ++tileBits;
         }
 
-        unsigned maxPolys = 1 << (22 - tileBits);
+        unsigned maxPolys = (unsigned)(1 << (22 - tileBits));
 
         dtNavMeshParams params;
         rcVcopy(params.orig, &boundingBox_.min_.x_);
@@ -392,13 +395,13 @@ bool NavigationMesh::Build()
         navMesh_ = dtAllocNavMesh();
         if (!navMesh_)
         {
-            LOGERROR("Could not allocate navigation mesh");
+            URHO3D_LOGERROR("Could not allocate navigation mesh");
             return false;
         }
 
         if (dtStatusFailed(navMesh_->init(&params)))
         {
-            LOGERROR("Could not initialize navigation mesh");
+            URHO3D_LOGERROR("Could not initialize navigation mesh");
             ReleaseNavigationMesh();
             return false;
         }
@@ -415,7 +418,7 @@ bool NavigationMesh::Build()
             }
         }
 
-        LOGDEBUG("Built navigation mesh with " + String(numTiles) + " tiles");
+        URHO3D_LOGDEBUG("Built navigation mesh with " + String(numTiles) + " tiles");
 
         // Send a notification event to concerned parties that we've been fully rebuilt
         {
@@ -432,19 +435,19 @@ bool NavigationMesh::Build()
 
 bool NavigationMesh::Build(const BoundingBox& boundingBox)
 {
-    PROFILE(BuildPartialNavigationMesh);
+    URHO3D_PROFILE(BuildPartialNavigationMesh);
 
     if (!node_)
         return false;
 
     if (!navMesh_)
     {
-        LOGERROR("Navigation mesh must first be built fully before it can be partially rebuilt");
+        URHO3D_LOGERROR("Navigation mesh must first be built fully before it can be partially rebuilt");
         return false;
     }
 
     if (!node_->GetWorldScale().Equals(Vector3::ONE))
-        LOGWARNING("Navigation mesh root node has scaling. Agent parameters may not work as intended");
+        URHO3D_LOGWARNING("Navigation mesh root node has scaling. Agent parameters may not work as intended");
 
     BoundingBox localSpaceBox = boundingBox.Transformed(node_->GetWorldTransform().Inverse());
 
@@ -469,13 +472,14 @@ bool NavigationMesh::Build(const BoundingBox& boundingBox)
         }
     }
 
-    LOGDEBUG("Rebuilt " + String(numTiles) + " tiles of the navigation mesh");
+    URHO3D_LOGDEBUG("Rebuilt " + String(numTiles) + " tiles of the navigation mesh");
     return true;
 }
 
-Vector3 NavigationMesh::FindNearestPoint(const Vector3& point, const Vector3& extents)
+Vector3 NavigationMesh::FindNearestPoint(const Vector3& point, const Vector3& extents, const dtQueryFilter* filter,
+    dtPolyRef* nearestRef)
 {
-    if(!InitializeQuery())
+    if (!InitializeQuery())
         return point;
 
     const Matrix3x4& transform = node_->GetWorldTransform();
@@ -485,14 +489,14 @@ Vector3 NavigationMesh::FindNearestPoint(const Vector3& point, const Vector3& ex
     Vector3 nearestPoint;
 
     dtPolyRef pointRef;
-    navMeshQuery_->findNearestPoly(&localPoint.x_, &extents.x_, queryFilter_, &pointRef, &nearestPoint.x_);
-    if (!pointRef)
-        return point;
-
-    return transform*nearestPoint;
+    if (!nearestRef)
+        nearestRef = &pointRef;
+    navMeshQuery_->findNearestPoly(&localPoint.x_, &extents.x_, filter ? filter : queryFilter_, nearestRef, &nearestPoint.x_);
+    return *nearestRef ? transform * nearestPoint : point;
 }
 
-Vector3 NavigationMesh::MoveAlongSurface(const Vector3& start, const Vector3& end, const Vector3& extents, int maxVisited)
+Vector3 NavigationMesh::MoveAlongSurface(const Vector3& start, const Vector3& end, const Vector3& extents, int maxVisited,
+    const dtQueryFilter* filter)
 {
     if (!InitializeQuery())
         return end;
@@ -503,23 +507,25 @@ Vector3 NavigationMesh::MoveAlongSurface(const Vector3& start, const Vector3& en
     Vector3 localStart = inverse * start;
     Vector3 localEnd = inverse * end;
 
+    const dtQueryFilter* queryFilter = filter ? filter : queryFilter_;
     dtPolyRef startRef;
-    navMeshQuery_->findNearestPoly(&localStart.x_, &extents.x_, queryFilter_, &startRef, 0);
+    navMeshQuery_->findNearestPoly(&localStart.x_, &extents.x_, queryFilter, &startRef, 0);
     if (!startRef)
         return end;
 
     Vector3 resultPos;
     int visitedCount = 0;
     maxVisited = Max(maxVisited, 0);
-    PODVector<dtPolyRef> visited(maxVisited);
-    navMeshQuery_->moveAlongSurface(startRef, &localStart.x_, &localEnd.x_, queryFilter_, &resultPos.x_, maxVisited ?
+    PODVector<dtPolyRef> visited((unsigned)maxVisited);
+    navMeshQuery_->moveAlongSurface(startRef, &localStart.x_, &localEnd.x_, queryFilter, &resultPos.x_, maxVisited ?
         &visited[0] : (dtPolyRef*)0, &visitedCount, maxVisited);
     return transform * resultPos;
 }
 
-void NavigationMesh::FindPath(PODVector<Vector3>& dest, const Vector3& start, const Vector3& end, const Vector3& extents)
+void NavigationMesh::FindPath(PODVector<Vector3>& dest, const Vector3& start, const Vector3& end, const Vector3& extents,
+    const dtQueryFilter* filter)
 {
-    PROFILE(FindPath);
+    URHO3D_PROFILE(FindPath);
 
     dest.Clear();
 
@@ -533,10 +539,11 @@ void NavigationMesh::FindPath(PODVector<Vector3>& dest, const Vector3& start, co
     Vector3 localStart = inverse * start;
     Vector3 localEnd = inverse * end;
 
+    const dtQueryFilter* queryFilter = filter ? filter : queryFilter_;
     dtPolyRef startRef;
     dtPolyRef endRef;
-    navMeshQuery_->findNearestPoly(&localStart.x_, &extents.x_, queryFilter_, &startRef, 0);
-    navMeshQuery_->findNearestPoly(&localEnd.x_, &extents.x_, queryFilter_, &endRef, 0);
+    navMeshQuery_->findNearestPoly(&localStart.x_, &extents.x_, queryFilter, &startRef, 0);
+    navMeshQuery_->findNearestPoly(&localEnd.x_, &extents.x_, queryFilter, &endRef, 0);
 
     if (!startRef || !endRef)
         return;
@@ -544,7 +551,7 @@ void NavigationMesh::FindPath(PODVector<Vector3>& dest, const Vector3& start, co
     int numPolys = 0;
     int numPathPoints = 0;
 
-    navMeshQuery_->findPath(startRef, endRef, &localStart.x_, &localEnd.x_, queryFilter_, pathData_->polys_, &numPolys,
+    navMeshQuery_->findPath(startRef, endRef, &localStart.x_, &localEnd.x_, queryFilter, pathData_->polys_, &numPolys,
         MAX_POLYS);
     if (!numPolys)
         return;
@@ -563,7 +570,7 @@ void NavigationMesh::FindPath(PODVector<Vector3>& dest, const Vector3& start, co
         dest.Push(transform * pathData_->pathPoints_[i]);
 }
 
-Vector3 NavigationMesh::GetRandomPoint()
+Vector3 NavigationMesh::GetRandomPoint(const dtQueryFilter* filter, dtPolyRef* randomRef)
 {
     if (!InitializeQuery())
         return Vector3::ZERO;
@@ -571,13 +578,17 @@ Vector3 NavigationMesh::GetRandomPoint()
     dtPolyRef polyRef;
     Vector3 point(Vector3::ZERO);
 
-    navMeshQuery_->findRandomPoint(queryFilter_, Random, &polyRef, &point.x_);
+    navMeshQuery_->findRandomPoint(filter ? filter : queryFilter_, Random, randomRef ? randomRef : &polyRef, &point.x_);
 
     return node_->GetWorldTransform() * point;
 }
 
-Vector3 NavigationMesh::GetRandomPointInCircle(const Vector3& center, float radius, const Vector3& extents)
+Vector3 NavigationMesh::GetRandomPointInCircle(const Vector3& center, float radius, const Vector3& extents,
+    const dtQueryFilter* filter, dtPolyRef* randomRef)
 {
+    if (randomRef)
+        *randomRef = 0;
+
     if (!InitializeQuery())
         return center;
 
@@ -585,21 +596,30 @@ Vector3 NavigationMesh::GetRandomPointInCircle(const Vector3& center, float radi
     Matrix3x4 inverse = transform.Inverse();
     Vector3 localCenter = inverse * center;
 
+    const dtQueryFilter* queryFilter = filter ? filter : queryFilter_;
     dtPolyRef startRef;
-    navMeshQuery_->findNearestPoly(&localCenter.x_, &extents.x_, queryFilter_, &startRef, 0);
+    navMeshQuery_->findNearestPoly(&localCenter.x_, &extents.x_, queryFilter, &startRef, 0);
     if (!startRef)
         return center;
 
     dtPolyRef polyRef;
+    if (!randomRef)
+        randomRef = &polyRef;
     Vector3 point(localCenter);
 
-    navMeshQuery_->findRandomPointAroundCircle(startRef, &localCenter.x_, radius, queryFilter_, Random, &polyRef, &point.x_);
+    navMeshQuery_->findRandomPointAroundCircle(startRef, &localCenter.x_, radius, queryFilter, Random, randomRef, &point.x_);
 
     return transform * point;
 }
 
-float NavigationMesh::GetDistanceToWall(const Vector3& point, float radius, const Vector3& extents)
+float NavigationMesh::GetDistanceToWall(const Vector3& point, float radius, const Vector3& extents, const dtQueryFilter* filter,
+    Vector3* hitPos, Vector3* hitNormal)
 {
+    if (hitPos)
+        *hitPos = Vector3::ZERO;
+    if (hitNormal)
+        *hitNormal = Vector3::DOWN;
+
     if (!InitializeQuery())
         return radius;
 
@@ -607,21 +627,30 @@ float NavigationMesh::GetDistanceToWall(const Vector3& point, float radius, cons
     Matrix3x4 inverse = transform.Inverse();
     Vector3 localPoint = inverse * point;
 
+    const dtQueryFilter* queryFilter = filter ? filter : queryFilter_;
     dtPolyRef startRef;
-    navMeshQuery_->findNearestPoly(&localPoint.x_, &extents.x_, queryFilter_, &startRef, 0);
+    navMeshQuery_->findNearestPoly(&localPoint.x_, &extents.x_, queryFilter, &startRef, 0);
     if (!startRef)
         return radius;
 
     float hitDist = radius;
-    Vector3 hitPos;
-    Vector3 hitNormal;
+    Vector3 pos;
+    if (!hitPos)
+        hitPos = &pos;
+    Vector3 normal;
+    if (!hitNormal)
+        hitNormal = &normal;
 
-    navMeshQuery_->findDistanceToWall(startRef, &localPoint.x_, radius, queryFilter_, &hitDist, &hitPos.x_, &hitNormal.x_);
+    navMeshQuery_->findDistanceToWall(startRef, &localPoint.x_, radius, queryFilter, &hitDist, &hitPos->x_, &hitNormal->x_);
     return hitDist;
 }
 
-Vector3 NavigationMesh::Raycast(const Vector3& start, const Vector3& end, const Vector3& extents)
+Vector3 NavigationMesh::Raycast(const Vector3& start, const Vector3& end, const Vector3& extents, const dtQueryFilter* filter,
+    Vector3* hitNormal)
 {
+    if (hitNormal)
+        *hitNormal = Vector3::DOWN;
+
     if (!InitializeQuery())
         return end;
 
@@ -631,16 +660,20 @@ Vector3 NavigationMesh::Raycast(const Vector3& start, const Vector3& end, const 
     Vector3 localStart = inverse * start;
     Vector3 localEnd = inverse * end;
 
+    const dtQueryFilter* queryFilter = filter ? filter : queryFilter_;
     dtPolyRef startRef;
-    navMeshQuery_->findNearestPoly(&localStart.x_, &extents.x_, queryFilter_, &startRef, 0);
+    navMeshQuery_->findNearestPoly(&localStart.x_, &extents.x_, queryFilter, &startRef, 0);
     if (!startRef)
         return end;
 
-    Vector3 localHitNormal;
+    Vector3 normal;
+    if (!hitNormal)
+        hitNormal = &normal;
     float t;
     int numPolys;
 
-    navMeshQuery_->raycast(startRef, &localStart.x_, &localEnd.x_, queryFilter_, &t, &localHitNormal.x_, pathData_->polys_, &numPolys, MAX_POLYS);
+    navMeshQuery_->raycast(startRef, &localStart.x_, &localEnd.x_, queryFilter, &t, &hitNormal->x_, pathData_->polys_, &numPolys,
+        MAX_POLYS);
     if (t == FLT_MAX)
         t = 1.0f;
 
@@ -699,13 +732,13 @@ void NavigationMesh::SetNavigationDataAttr(const PODVector<unsigned char>& value
     navMesh_ = dtAllocNavMesh();
     if (!navMesh_)
     {
-        LOGERROR("Could not allocate navigation mesh");
+        URHO3D_LOGERROR("Could not allocate navigation mesh");
         return;
     }
 
     if (dtStatusFailed(navMesh_->init(&params)))
     {
-        LOGERROR("Could not initialize navigation mesh");
+        URHO3D_LOGERROR("Could not initialize navigation mesh");
         ReleaseNavigationMesh();
         return;
     }
@@ -722,14 +755,14 @@ void NavigationMesh::SetNavigationDataAttr(const PODVector<unsigned char>& value
         unsigned char* navData = (unsigned char*)dtAlloc(navDataSize, DT_ALLOC_PERM);
         if (!navData)
         {
-            LOGERROR("Could not allocate data for navigation mesh tile");
+            URHO3D_LOGERROR("Could not allocate data for navigation mesh tile");
             return;
         }
 
         buffer.Read(navData, navDataSize);
         if (dtStatusFailed(navMesh_->addTile(navData, navDataSize, DT_TILE_FREE_DATA, 0, 0)))
         {
-            LOGERROR("Failed to add navigation mesh tile");
+            URHO3D_LOGERROR("Failed to add navigation mesh tile");
             dtFree(navData);
             return;
         }
@@ -737,7 +770,7 @@ void NavigationMesh::SetNavigationDataAttr(const PODVector<unsigned char>& value
             ++numTiles;
     }
 
-    LOGDEBUG("Created navigation mesh with " + String(numTiles) + " tiles from serialized data");
+    URHO3D_LOGDEBUG("Created navigation mesh with " + String(numTiles) + " tiles from serialized data");
 }
 
 PODVector<unsigned char> NavigationMesh::GetNavigationDataAttr() const
@@ -769,8 +802,8 @@ PODVector<unsigned char> NavigationMesh::GetNavigationDataAttr() const
                 ret.WriteInt(x);
                 ret.WriteInt(z);
                 ret.WriteUInt(navMesh->getTileRef(tile));
-                ret.WriteUInt(tile->dataSize);
-                ret.Write(tile->data, tile->dataSize);
+                ret.WriteUInt((unsigned)tile->dataSize);
+                ret.Write(tile->data, (unsigned)tile->dataSize);
             }
         }
     }
@@ -780,7 +813,7 @@ PODVector<unsigned char> NavigationMesh::GetNavigationDataAttr() const
 
 void NavigationMesh::CollectGeometries(Vector<NavigationGeometryInfo>& geometryList)
 {
-    PROFILE(CollectNavigationGeometry);
+    URHO3D_PROFILE(CollectNavigationGeometry);
 
     // Get Navigable components from child nodes, not from whole scene. This makes it possible to partition
     // the scene into several navigation meshes
@@ -831,7 +864,8 @@ void NavigationMesh::CollectGeometries(Vector<NavigationGeometryInfo>& geometryL
     }
 }
 
-void NavigationMesh::CollectGeometries(Vector<NavigationGeometryInfo>& geometryList, Node* node, HashSet<Node*>& processedNodes, bool recursive)
+void NavigationMesh::CollectGeometries(Vector<NavigationGeometryInfo>& geometryList, Node* node, HashSet<Node*>& processedNodes,
+    bool recursive)
 {
     // Make sure nodes are not included twice
     if (processedNodes.Contains(node))
@@ -903,7 +937,7 @@ void NavigationMesh::CollectGeometries(Vector<NavigationGeometryInfo>& geometryL
     if (recursive)
     {
         const Vector<SharedPtr<Node> >& children = node->GetChildren();
-        for(unsigned i = 0; i < children.Size(); ++i)
+        for (unsigned i = 0; i < children.Size(); ++i)
             CollectGeometries(geometryList, children[i], processedNodes, recursive);
     }
 }
@@ -927,9 +961,9 @@ void NavigationMesh::GetTileGeometry(NavBuildData* build, Vector<NavigationGeome
                 build->offMeshVertices_.Push(start);
                 build->offMeshVertices_.Push(end);
                 build->offMeshRadii_.Push(connection->GetRadius());
-                build->offMeshFlags_.Push(connection->GetMask());
+                build->offMeshFlags_.Push((unsigned short)connection->GetMask());
                 build->offMeshAreas_.Push((unsigned char)connection->GetAreaID());
-                build->offMeshDir_.Push(connection->IsBidirectional() ? DT_OFFMESH_CON_BIDIR : 0);
+                build->offMeshDir_.Push((unsigned char)(connection->IsBidirectional() ? DT_OFFMESH_CON_BIDIR : 0));
                 continue;
             }
             else if (geometryList[i].component_->GetType() == NavArea::GetTypeStatic())
@@ -1078,7 +1112,7 @@ void NavigationMesh::AddTriMeshGeometry(NavBuildData* build, Geometry* geometry,
 
 bool NavigationMesh::BuildTile(Vector<NavigationGeometryInfo>& geometryList, int x, int z)
 {
-    PROFILE(BuildNavigationMeshTile);
+    URHO3D_PROFILE(BuildNavigationMeshTile);
 
     // Remove previous tile (if any)
     navMesh_->removeTile(navMesh_->getTileRefAt(x, z, 0), 0, 0);
@@ -1086,15 +1120,15 @@ bool NavigationMesh::BuildTile(Vector<NavigationGeometryInfo>& geometryList, int
     float tileEdgeLength = (float)tileSize_ * cellSize_;
 
     BoundingBox tileBoundingBox(Vector3(
-        boundingBox_.min_.x_ + tileEdgeLength * (float)x,
-        boundingBox_.min_.y_,
-        boundingBox_.min_.z_ + tileEdgeLength * (float)z
-    ),
-    Vector3(
-        boundingBox_.min_.x_ + tileEdgeLength * (float)(x + 1),
-        boundingBox_.max_.y_,
-        boundingBox_.min_.z_ + tileEdgeLength * (float)(z + 1)
-    ));
+            boundingBox_.min_.x_ + tileEdgeLength * (float)x,
+            boundingBox_.min_.y_,
+            boundingBox_.min_.z_ + tileEdgeLength * (float)z
+        ),
+        Vector3(
+            boundingBox_.min_.x_ + tileEdgeLength * (float)(x + 1),
+            boundingBox_.max_.y_,
+            boundingBox_.min_.z_ + tileEdgeLength * (float)(z + 1)
+        ));
 
     SimpleNavBuildData build;
 
@@ -1134,14 +1168,14 @@ bool NavigationMesh::BuildTile(Vector<NavigationGeometryInfo>& geometryList, int
     build.heightField_ = rcAllocHeightfield();
     if (!build.heightField_)
     {
-        LOGERROR("Could not allocate heightfield");
+        URHO3D_LOGERROR("Could not allocate heightfield");
         return false;
     }
 
     if (!rcCreateHeightfield(build.ctx_, *build.heightField_, cfg.width, cfg.height, cfg.bmin, cfg.bmax, cfg.cs,
         cfg.ch))
     {
-        LOGERROR("Could not create heightfield");
+        URHO3D_LOGERROR("Could not create heightfield");
         return false;
     }
 
@@ -1161,36 +1195,37 @@ bool NavigationMesh::BuildTile(Vector<NavigationGeometryInfo>& geometryList, int
     build.compactHeightField_ = rcAllocCompactHeightfield();
     if (!build.compactHeightField_)
     {
-        LOGERROR("Could not allocate create compact heightfield");
+        URHO3D_LOGERROR("Could not allocate create compact heightfield");
         return false;
     }
     if (!rcBuildCompactHeightfield(build.ctx_, cfg.walkableHeight, cfg.walkableClimb, *build.heightField_,
         *build.compactHeightField_))
     {
-        LOGERROR("Could not build compact heightfield");
+        URHO3D_LOGERROR("Could not build compact heightfield");
         return false;
     }
     if (!rcErodeWalkableArea(build.ctx_, cfg.walkableRadius, *build.compactHeightField_))
     {
-        LOGERROR("Could not erode compact heightfield");
+        URHO3D_LOGERROR("Could not erode compact heightfield");
         return false;
     }
 
     // Mark area volumes
     for (unsigned i = 0; i < build.navAreas_.Size(); ++i)
-        rcMarkBoxArea(build.ctx_, &build.navAreas_[i].bounds_.min_.x_, &build.navAreas_[i].bounds_.max_.x_, build.navAreas_[i].areaID_, *build.compactHeightField_);
+        rcMarkBoxArea(build.ctx_, &build.navAreas_[i].bounds_.min_.x_, &build.navAreas_[i].bounds_.max_.x_,
+            build.navAreas_[i].areaID_, *build.compactHeightField_);
 
     if (this->partitionType_ == NAVMESH_PARTITION_WATERSHED)
     {
         if (!rcBuildDistanceField(build.ctx_, *build.compactHeightField_))
         {
-            LOGERROR("Could not build distance field");
+            URHO3D_LOGERROR("Could not build distance field");
             return false;
         }
         if (!rcBuildRegions(build.ctx_, *build.compactHeightField_, cfg.borderSize, cfg.minRegionArea,
             cfg.mergeRegionArea))
         {
-            LOGERROR("Could not build regions");
+            URHO3D_LOGERROR("Could not build regions");
             return false;
         }
     }
@@ -1198,7 +1233,7 @@ bool NavigationMesh::BuildTile(Vector<NavigationGeometryInfo>& geometryList, int
     {
         if (!rcBuildRegionsMonotone(build.ctx_, *build.compactHeightField_, cfg.borderSize, cfg.minRegionArea, cfg.mergeRegionArea))
         {
-            LOGERROR("Could not build monotone regions");
+            URHO3D_LOGERROR("Could not build monotone regions");
             return false;
         }
     }
@@ -1206,38 +1241,38 @@ bool NavigationMesh::BuildTile(Vector<NavigationGeometryInfo>& geometryList, int
     build.contourSet_ = rcAllocContourSet();
     if (!build.contourSet_)
     {
-        LOGERROR("Could not allocate contour set");
+        URHO3D_LOGERROR("Could not allocate contour set");
         return false;
     }
     if (!rcBuildContours(build.ctx_, *build.compactHeightField_, cfg.maxSimplificationError, cfg.maxEdgeLen,
         *build.contourSet_))
     {
-        LOGERROR("Could not create contours");
+        URHO3D_LOGERROR("Could not create contours");
         return false;
     }
 
     build.polyMesh_ = rcAllocPolyMesh();
     if (!build.polyMesh_)
     {
-        LOGERROR("Could not allocate poly mesh");
+        URHO3D_LOGERROR("Could not allocate poly mesh");
         return false;
     }
     if (!rcBuildPolyMesh(build.ctx_, *build.contourSet_, cfg.maxVertsPerPoly, *build.polyMesh_))
     {
-        LOGERROR("Could not triangulate contours");
+        URHO3D_LOGERROR("Could not triangulate contours");
         return false;
     }
 
     build.polyMeshDetail_ = rcAllocPolyMeshDetail();
     if (!build.polyMeshDetail_)
     {
-        LOGERROR("Could not allocate detail mesh");
+        URHO3D_LOGERROR("Could not allocate detail mesh");
         return false;
     }
     if (!rcBuildPolyMeshDetail(build.ctx_, *build.polyMesh_, *build.compactHeightField_, cfg.detailSampleDist,
         cfg.detailSampleMaxError, *build.polyMeshDetail_))
     {
-        LOGERROR("Could not build detail mesh");
+        URHO3D_LOGERROR("Could not build detail mesh");
         return false;
     }
 
@@ -1290,13 +1325,13 @@ bool NavigationMesh::BuildTile(Vector<NavigationGeometryInfo>& geometryList, int
 
     if (!dtCreateNavMeshData(&params, &navData, &navDataSize))
     {
-        LOGERROR("Could not build navigation mesh tile data");
+        URHO3D_LOGERROR("Could not build navigation mesh tile data");
         return false;
     }
 
     if (dtStatusFailed(navMesh_->addTile(navData, navDataSize, DT_TILE_FREE_DATA, 0, 0)))
     {
-        LOGERROR("Failed to add navigation mesh tile");
+        URHO3D_LOGERROR("Failed to add navigation mesh tile");
         dtFree(navData);
         return false;
     }
@@ -1325,13 +1360,13 @@ bool NavigationMesh::InitializeQuery()
     navMeshQuery_ = dtAllocNavMeshQuery();
     if (!navMeshQuery_)
     {
-        LOGERROR("Could not create navigation mesh query");
+        URHO3D_LOGERROR("Could not create navigation mesh query");
         return false;
     }
 
     if (dtStatusFailed(navMeshQuery_->init(navMesh_, MAX_POLYS)))
     {
-        LOGERROR("Could not init navigation mesh query");
+        URHO3D_LOGERROR("Could not init navigation mesh query");
         return false;
     }
 
@@ -1348,8 +1383,7 @@ void NavigationMesh::ReleaseNavigationMesh()
 
     numTilesX_ = 0;
     numTilesZ_ = 0;
-    boundingBox_.min_ = boundingBox_.max_ = Vector3::ZERO;
-    boundingBox_.defined_ = false;
+    boundingBox_.Clear();
 }
 
 void NavigationMesh::SetPartitionType(NavmeshPartitionType ptype)
@@ -1364,7 +1398,7 @@ void RegisterNavigationLibrary(Context* context)
     NavigationMesh::RegisterObject(context);
     OffMeshConnection::RegisterObject(context);
     CrowdAgent::RegisterObject(context);
-    DetourCrowdManager::RegisterObject(context);
+    CrowdManager::RegisterObject(context);
     DynamicNavigationMesh::RegisterObject(context);
     Obstacle::RegisterObject(context);
     NavArea::RegisterObject(context);

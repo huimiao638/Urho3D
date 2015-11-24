@@ -27,7 +27,7 @@ project (Urho3D-Tools)
 find_package (Urho3D REQUIRED)
 include_directories (${URHO3D_INCLUDE_DIRS})
 
-# Urho3DPlayer target is rather special, although it is here, it is not a tool because it builds into platform-specific binary
+# Urho3DPlayer target is rather special, although it is here, it is not a tool because it is built into target platform binary as opposed to host platform
 if (NOT EMSCRIPTEN)
     add_subdirectory (Urho3DPlayer)
 endif ()
@@ -43,14 +43,14 @@ if ((CMAKE_CROSSCOMPILING OR IOS) AND URHO3D_PACKAGING)
     ExternalProject_Add (PackageTool
         SOURCE_DIR ${CMAKE_SOURCE_DIR}/Source/Tools/PackageTool
         CMAKE_ARGS -DDEST_RUNTIME_DIR=${CMAKE_BINARY_DIR}/bin/tool -DBAKED_CMAKE_SOURCE_DIR=${CMAKE_SOURCE_DIR} -DBAKED_CMAKE_BINARY_DIR=${CMAKE_BINARY_DIR} ${IOS_FIX})
+    if (CMAKE_HOST_WIN32 AND NOT URHO3D_MKLINK)
+        add_dependencies (PackageTool Urho3D)   # Ensure Urho3D headers are fresh when building PackageTool externally on Windows host system without MKLINK
+    endif ()
     install (PROGRAMS ${CMAKE_BINARY_DIR}/bin/tool/PackageTool DESTINATION ${DEST_RUNTIME_DIR}/tool)
 endif ()
 
-# All tools must be natively built and output to bin/tool subdir to differentiate them from platform-specific binaries in the bin directory
-set_output_directories (${CMAKE_BINARY_DIR}/bin/tool RUNTIME PDB)
-if (DEST_RUNTIME_DIR STREQUAL bin)
-    set (DEST_RUNTIME_DIR bin/tool)
-endif ()
+# All tools must be natively built and output to bin/tool subdir to differentiate them from target platfrom binaries in the bin directory
+set_tool_output_directories ()
 
 if (URHO3D_TOOLS)
     # Urho3D tools

@@ -20,12 +20,14 @@
 // THE SOFTWARE.
 //
 
+#include "../Precompiled.h"
+
+#include "../Core/Profiler.h"
 #include "../IO/File.h"
 #include "../IO/FileSystem.h"
 #include "../IO/Log.h"
 #include "../IO/MemoryBuffer.h"
 #include "../IO/PackageFile.h"
-#include "../Core/Profiler.h"
 
 #include <cstdio>
 #include <LZ4/lz4.h>
@@ -35,7 +37,7 @@
 namespace Urho3D
 {
 
-#ifdef WIN32
+#ifdef _WIN32
 static const wchar_t* openMode[] =
 {
     L"rb",
@@ -54,6 +56,7 @@ static const char* openMode[] =
 #endif
 
 #ifdef ANDROID
+const char* APK = "/apk/";
 static const unsigned READ_BUFFER_SIZE = 32768;
 #endif
 static const unsigned SKIP_BUFFER_SIZE = 1024;
@@ -62,9 +65,9 @@ File::File(Context* context) :
     Object(context),
     mode_(FILE_READ),
     handle_(0),
-    #ifdef ANDROID
+#ifdef ANDROID
     assetHandle_(0),
-    #endif
+#endif
     readBufferOffset_(0),
     readBufferSize_(0),
     offset_(0),
@@ -79,9 +82,9 @@ File::File(Context* context, const String& fileName, FileMode mode) :
     Object(context),
     mode_(FILE_READ),
     handle_(0),
-    #ifdef ANDROID
+#ifdef ANDROID
     assetHandle_(0),
-    #endif
+#endif
     readBufferOffset_(0),
     readBufferSize_(0),
     offset_(0),
@@ -97,9 +100,9 @@ File::File(Context* context, PackageFile* package, const String& fileName) :
     Object(context),
     mode_(FILE_READ),
     handle_(0),
-    #ifdef ANDROID
+#ifdef ANDROID
     assetHandle_(0),
-    #endif
+#endif
     readBufferOffset_(0),
     readBufferSize_(0),
     offset_(0),
@@ -123,23 +126,23 @@ bool File::Open(const String& fileName, FileMode mode)
     FileSystem* fileSystem = GetSubsystem<FileSystem>();
     if (fileSystem && !fileSystem->CheckAccess(GetPath(fileName)))
     {
-        LOGERRORF("Access denied to %s", fileName.CString());
+        URHO3D_LOGERRORF("Access denied to %s", fileName.CString());
         return false;
     }
 
-    #ifdef ANDROID
-    if (fileName.StartsWith("/apk/"))
+#ifdef ANDROID
+    if (URHO3D_IS_ASSET(fileName))
     {
         if (mode != FILE_READ)
         {
-            LOGERROR("Only read mode is supported for asset files");
+            URHO3D_LOGERROR("Only read mode is supported for asset files");
             return false;
         }
 
-        assetHandle_ = SDL_RWFromFile(fileName.Substring(5).CString(), "rb");
+        assetHandle_ = SDL_RWFromFile(URHO3D_ASSET(fileName), "rb");
         if (!assetHandle_)
         {
-            LOGERRORF("Could not open asset file %s", fileName.CString());
+            URHO3D_LOGERRORF("Could not open asset file %s", fileName.CString());
             return false;
         }
         else
@@ -156,33 +159,33 @@ bool File::Open(const String& fileName, FileMode mode)
             return true;
         }
     }
-    #endif
+#endif
 
     if (fileName.Empty())
     {
-        LOGERROR("Could not open file with empty name");
+        URHO3D_LOGERROR("Could not open file with empty name");
         return false;
     }
 
-    #ifdef WIN32
+#ifdef _WIN32
     handle_ = _wfopen(GetWideNativePath(fileName).CString(), openMode[mode]);
-    #else
+#else
     handle_ = fopen(GetNativePath(fileName).CString(), openMode[mode]);
-    #endif
+#endif
 
     // If file did not exist in readwrite mode, retry with write-update mode
     if (mode == FILE_READWRITE && !handle_)
     {
-        #ifdef WIN32
+#ifdef _WIN32
         handle_ = _wfopen(GetWideNativePath(fileName).CString(), openMode[mode + 1]);
-        #else
+#else
         handle_ = fopen(GetNativePath(fileName).CString(), openMode[mode + 1]);
-        #endif
+#endif
     }
 
     if (!handle_)
     {
-        LOGERRORF("Could not open file %s", fileName.CString());
+        URHO3D_LOGERRORF("Could not open file %s", fileName.CString());
         return false;
     }
 
@@ -200,7 +203,7 @@ bool File::Open(const String& fileName, FileMode mode)
     fseek((FILE*)handle_, 0, SEEK_SET);
     if (size > M_MAX_UNSIGNED)
     {
-        LOGERRORF("Could not open file %s which is larger than 4GB", fileName.CString());
+        URHO3D_LOGERRORF("Could not open file %s which is larger than 4GB", fileName.CString());
         Close();
         size_ = 0;
         return false;
@@ -220,14 +223,14 @@ bool File::Open(PackageFile* package, const String& fileName)
     if (!entry)
         return false;
 
-    #ifdef WIN32
+#ifdef _WIN32
     handle_ = _wfopen(GetWideNativePath(package->GetName()).CString(), L"rb");
-    #else
+#else
     handle_ = fopen(GetNativePath(package->GetName()).CString(), "rb");
-    #endif
+#endif
     if (!handle_)
     {
-        LOGERROR("Could not open package file " + fileName);
+        URHO3D_LOGERROR("Could not open package file " + fileName);
         return false;
     }
 
@@ -247,11 +250,11 @@ bool File::Open(PackageFile* package, const String& fileName)
 
 unsigned File::Read(void* dest, unsigned size)
 {
-    #ifdef ANDROID
+#ifdef ANDROID
     if (!handle_ && !assetHandle_)
-    #else
+#else
     if (!handle_)
-    #endif
+#endif
     {
         // Do not log the error further here to prevent spamming the stderr stream
         return 0;
@@ -259,7 +262,7 @@ unsigned File::Read(void* dest, unsigned size)
 
     if (mode_ == FILE_WRITE)
     {
-        LOGERROR("File not opened for reading");
+        URHO3D_LOGERROR("File not opened for reading");
         return 0;
     }
 
@@ -268,7 +271,7 @@ unsigned File::Read(void* dest, unsigned size)
     if (!size)
         return 0;
 
-    #ifdef ANDROID
+#ifdef ANDROID
     if (assetHandle_)
     {
         unsigned sizeLeft = size;
@@ -293,7 +296,7 @@ unsigned File::Read(void* dest, unsigned size)
 
         return size;
     }
-    #endif
+#endif
     if (compressed_)
     {
         unsigned sizeLeft = size;
@@ -318,13 +321,13 @@ unsigned File::Read(void* dest, unsigned size)
 
                 /// \todo Handle errors
                 fread(inputBuffer_.Get(), packedSize, 1, (FILE*)handle_);
-                LZ4_decompress_fast((const char*)inputBuffer_.Get(), (char *)readBuffer_.Get(), unpackedSize);
+                LZ4_decompress_fast((const char*)inputBuffer_.Get(), (char*)readBuffer_.Get(), unpackedSize);
 
                 readBufferSize_ = unpackedSize;
                 readBufferOffset_ = 0;
             }
 
-            unsigned copySize = Min((int)(readBufferSize_ - readBufferOffset_), (int)sizeLeft);
+            unsigned copySize = (unsigned)Min((int)(readBufferSize_ - readBufferOffset_), (int)sizeLeft);
             memcpy(destPtr, readBuffer_.Get() + readBufferOffset_, copySize);
             destPtr += copySize;
             sizeLeft -= copySize;
@@ -347,7 +350,7 @@ unsigned File::Read(void* dest, unsigned size)
     {
         // Return to the position where the read began
         fseek((FILE*)handle_, position_ + offset_, SEEK_SET);
-        LOGERROR("Error while reading from file " + GetName());
+        URHO3D_LOGERROR("Error while reading from file " + GetName());
         return 0;
     }
 
@@ -358,11 +361,11 @@ unsigned File::Read(void* dest, unsigned size)
 
 unsigned File::Seek(unsigned position)
 {
-    #ifdef ANDROID
+#ifdef ANDROID
     if (!handle_ && !assetHandle_)
-    #else
+#else
     if (!handle_)
-    #endif
+#endif
     {
         // Do not log the error further here to prevent spamming the stderr stream
         return 0;
@@ -372,7 +375,7 @@ unsigned File::Seek(unsigned position)
     if (mode_ == FILE_READ && position > size_)
         position = size_;
 
-    #ifdef ANDROID
+#ifdef ANDROID
     if (assetHandle_)
     {
         SDL_RWseek(assetHandle_, position, SEEK_SET);
@@ -381,7 +384,7 @@ unsigned File::Seek(unsigned position)
         readBufferSize_ = 0;
         return position_;
     }
-    #endif
+#endif
     if (compressed_)
     {
         // Start over from the beginning
@@ -397,10 +400,10 @@ unsigned File::Seek(unsigned position)
         {
             unsigned char skipBuffer[SKIP_BUFFER_SIZE];
             while (position > position_)
-                Read(skipBuffer, Min((int)position - position_, (int)SKIP_BUFFER_SIZE));
+                Read(skipBuffer, (unsigned)Min((int)position - position_, (int)SKIP_BUFFER_SIZE));
         }
         else
-            LOGERROR("Seeking backward in a compressed file is not supported");
+            URHO3D_LOGERROR("Seeking backward in a compressed file is not supported");
 
         return position_;
     }
@@ -422,7 +425,7 @@ unsigned File::Write(const void* data, unsigned size)
 
     if (mode_ == FILE_READ)
     {
-        LOGERROR("File not opened for writing");
+        URHO3D_LOGERROR("File not opened for writing");
         return 0;
     }
 
@@ -440,7 +443,7 @@ unsigned File::Write(const void* data, unsigned size)
     {
         // Return to the position where the write began
         fseek((FILE*)handle_, position_ + offset_, SEEK_SET);
-        LOGERROR("Error while writing to file " + GetName());
+        URHO3D_LOGERROR("Error while writing to file " + GetName());
         return 0;
     }
 
@@ -456,14 +459,14 @@ unsigned File::GetChecksum()
 {
     if (offset_ || checksum_)
         return checksum_;
-    #ifdef ANDROID
+#ifdef ANDROID
     if ((!handle_ && !assetHandle_) || mode_ == FILE_WRITE)
-    #else
+#else
     if (!handle_ || mode_ == FILE_WRITE)
-    #endif
+#endif
         return 0;
 
-    PROFILE(CalculateFileChecksum);
+    URHO3D_PROFILE(CalculateFileChecksum);
 
     unsigned oldPos = position_;
     checksum_ = 0;
@@ -483,13 +486,13 @@ unsigned File::GetChecksum()
 
 void File::Close()
 {
-    #ifdef ANDROID
+#ifdef ANDROID
     if (assetHandle_)
     {
         SDL_RWclose(assetHandle_);
         assetHandle_ = 0;
     }
-    #endif
+#endif
 
     readBuffer_.Reset();
     inputBuffer_.Reset();
@@ -518,11 +521,11 @@ void File::SetName(const String& name)
 
 bool File::IsOpen() const
 {
-    #ifdef ANDROID
+#ifdef ANDROID
         return handle_ != 0 || assetHandle_ != 0;
-    #else
-        return handle_ != 0;
-    #endif
+#else
+    return handle_ != 0;
+#endif
 }
 
 }

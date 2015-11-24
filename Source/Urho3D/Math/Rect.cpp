@@ -20,9 +20,13 @@
 // THE SOFTWARE.
 //
 
+#include "../Precompiled.h"
+
 #include "../Math/Rect.h"
 
 #include <cstdio>
+
+#include "../DebugNew.h"
 
 namespace Urho3D
 {
@@ -57,11 +61,12 @@ void Rect::Clip(const Rect& rect)
         min_.y_ = rect.min_.y_;
     if (rect.max_.y_ < max_.y_)
         max_.y_ = rect.max_.y_;
-    
-    if (min_.x_ > max_.x_)
-        Swap(min_.x_, max_.x_);
-    if (min_.y_ > max_.y_)
-        Swap(min_.y_, max_.y_);
+
+    if (min_.x_ > max_.x_ || min_.y_ > max_.y_)
+    {
+        min_ = Vector2(M_INFINITY, M_INFINITY);
+        max_ = Vector2(-M_INFINITY, -M_INFINITY);
+    }
 }
 
 }

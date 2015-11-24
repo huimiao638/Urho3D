@@ -32,7 +32,7 @@ class ListView;
 /// %Menu %UI element that displays a popup list view.
 class URHO3D_API DropDownList : public Menu
 {
-    OBJECT(DropDownList)
+    URHO3D_OBJECT(DropDownList, Menu)
 
 public:
     /// Construct.
@@ -52,7 +52,7 @@ public:
     virtual void OnHidePopup();
     /// React to editable status change.
     virtual void OnSetEditable();
-    
+
     /// Add item to the end of the list.
     void AddItem(UIElement* item);
     /// Insert item to a specific position.
@@ -80,12 +80,16 @@ public:
     unsigned GetSelection() const;
     /// Return selected item, or null if none selected.
     UIElement* GetSelectedItem() const;
+
     /// Return listview element.
     ListView* GetListView() const { return listView_; }
+
     /// Return selected item placeholder element.
     UIElement* GetPlaceholder() const { return placeholder_; }
+
     /// Return place holder text.
     const String& GetPlaceholderText() const;
+
     /// Return whether popup should be automatically resized.
     bool GetResizePopup() const { return resizePopup_; }
 

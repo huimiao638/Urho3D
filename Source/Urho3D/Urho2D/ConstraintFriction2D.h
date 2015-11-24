@@ -30,11 +30,11 @@ namespace Urho3D
 /// 2D friction constraint component.
 class URHO3D_API ConstraintFriction2D : public Constraint2D
 {
-    OBJECT(ConstraintFriction2D);
+    URHO3D_OBJECT(ConstraintFriction2D, Constraint2D);
 
 public:
     /// Construct.
-    ConstraintFriction2D(Context* scontext);
+    ConstraintFriction2D(Context* context);
     /// Destruct.
     virtual ~ConstraintFriction2D();
     /// Register object factory.
@@ -49,8 +49,10 @@ public:
 
     /// Return anchor.
     const Vector2& GetAnchor() const { return anchor_; }
+
     /// Set max force.
     float GetMaxForce() const { return jointDef_.maxForce; }
+
     /// Set max torque.
     float GetMaxTorque() const { return jointDef_.maxTorque; }
 

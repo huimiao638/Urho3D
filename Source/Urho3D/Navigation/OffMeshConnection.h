@@ -30,7 +30,7 @@ namespace Urho3D
 /// A link between otherwise unconnected regions of the navigation mesh.
 class URHO3D_API OffMeshConnection : public Component
 {
-    OBJECT(OffMeshConnection);
+    URHO3D_OBJECT(OffMeshConnection, Component);
 
 public:
     /// Construct.
@@ -60,12 +60,16 @@ public:
 
     /// Return endpoint node.
     Node* GetEndPoint() const;
+
     /// Return radius.
     float GetRadius() const { return radius_; }
+
     /// Return whether is bidirectional.
     bool IsBidirectional() const { return bidirectional_; }
+
     /// Return the user assigned mask
     unsigned GetMask() const { return mask_; }
+
     /// Return the user assigned area ID
     unsigned GetAreaID() const { return areaId_; }
 

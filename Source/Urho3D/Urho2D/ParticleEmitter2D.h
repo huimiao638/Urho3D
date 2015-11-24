@@ -31,13 +31,13 @@ class ParticleEffect2D;
 class Sprite2D;
 
 /// 2D particle.
- struct Particle2D
+struct Particle2D
 {
     /// Time to live.
     float timeToLive_;
 
     /// Position.
-    Vector2 position_;
+    Vector3 position_;
     /// Size.
     float size_;
     /// Size delta.
@@ -75,7 +75,7 @@ class Sprite2D;
 /// 2D particle emitter component.
 class URHO3D_API ParticleEmitter2D : public Drawable2D
 {
-    OBJECT(ParticleEmitter2D);
+    URHO3D_OBJECT(ParticleEmitter2D, Drawable2D);
 
 public:
     /// Construct.
@@ -87,7 +87,7 @@ public:
 
     /// Handle enabled/disabled state change.
     virtual void OnSetEnabled();
-    
+
     /// Set particle effect.
     void SetEffect(ParticleEffect2D* effect);
     /// Set sprite.
@@ -101,8 +101,10 @@ public:
     ParticleEffect2D* GetEffect() const;
     /// Return sprite.
     Sprite2D* GetSprite() const;
+
     /// Return blend mode.
     BlendMode GetBlendMode() const { return blendMode_; }
+
     /// Return max particles.
     unsigned GetMaxParticles() const { return particles_.Size(); }
 
@@ -116,8 +118,8 @@ public:
     ResourceRef GetSpriteAttr() const;
 
 private:
-    /// Handle node being assigned.
-    virtual void OnNodeSet(Node* node);
+    /// Handle scene being assigned.
+    virtual void OnSceneSet(Scene* scene);
     /// Recalculate the world-space bounding box.
     virtual void OnWorldBoundingBoxUpdate();
     /// Handle draw order changed.

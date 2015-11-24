@@ -30,6 +30,7 @@ namespace Urho3D
 class Drawable2D;
 class IndexBuffer;
 class Material;
+class Technique;
 class VertexBuffer;
 struct FrameInfo;
 struct SourceBatch2D;
@@ -54,16 +55,18 @@ struct ViewBatchInfo2D
     PODVector<const SourceBatch2D*> sourceBatches_;
     /// Batch count;
     unsigned batchCount_;
+    /// Distances.
+    PODVector<float> distances_;
     /// Materials.
     Vector<SharedPtr<Material> > materials_;
     /// Geometries.
     Vector<SharedPtr<Geometry> > geometries_;
 };
 
-/// 2D renderer components.
+/// 2D renderer component.
 class URHO3D_API Renderer2D : public Drawable
 {
-    OBJECT(Renderer2D);
+    URHO3D_OBJECT(Renderer2D, Drawable);
 
     friend void CheckDrawableVisibility(const WorkItem* item, unsigned threadIndex);
 
@@ -106,7 +109,8 @@ private:
     /// Update view batch info.
     void UpdateViewBatchInfo(ViewBatchInfo2D& viewBatchInfo, Camera* camera);
     /// Add view batch.
-    void AddViewBatch(ViewBatchInfo2D& viewBatchInfo, Material* material, unsigned indexStart, unsigned indexCount, unsigned vertexStart, unsigned vertexCount);
+    void AddViewBatch(ViewBatchInfo2D& viewBatchInfo, Material* material, 
+        unsigned indexStart, unsigned indexCount, unsigned vertexStart, unsigned vertexCount, float distance);
 
     /// Index buffer.
     SharedPtr<IndexBuffer> indexBuffer_;
@@ -122,8 +126,12 @@ private:
     const Frustum* frustum_;
     /// Frustum bounding box for current frame.
     BoundingBox frustumBoundingBox_;
+    /// View mask of current camera for visibility checking.
+    unsigned viewMask_;
     /// Cached materials.
     HashMap<Texture2D*, HashMap<int, SharedPtr<Material> > > cachedMaterials_;
+    /// Cached techniques per blend mode.
+    HashMap<int, SharedPtr<Technique> > cachedTechniques_;
 };
 
 }

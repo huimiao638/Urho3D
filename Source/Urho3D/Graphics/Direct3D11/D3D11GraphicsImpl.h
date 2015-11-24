@@ -22,8 +22,8 @@
 
 #pragma once
 
-#include "../../Math/Color.h"
 #include "../../Graphics/GraphicsDefs.h"
+#include "../../Math/Color.h"
 
 #include <d3d11.h>
 #include <dxgi.h>
@@ -36,20 +36,23 @@ namespace Urho3D
 class URHO3D_API GraphicsImpl
 {
     friend class Graphics;
-    
+
 public:
     /// Construct.
     GraphicsImpl();
-    
+
     /// Return Direct3D device.
     ID3D11Device* GetDevice() const { return device_; }
+
     /// Return Direct3D immediate device context.
     ID3D11DeviceContext* GetDeviceContext() const { return deviceContext_; }
+
     /// Return swapchain.
     IDXGISwapChain* GetSwapChain() const { return swapChain_; }
+
     /// Return window.
     SDL_Window* GetWindow() const { return window_; }
-    
+
 private:
     /// SDL window.
     SDL_Window* window_;
@@ -75,6 +78,8 @@ private:
     HashMap<unsigned, ID3D11DepthStencilState*> depthStates_;
     /// Created rasterizer state objects.
     HashMap<unsigned, ID3D11RasterizerState*> rasterizerStates_;
+    /// Intermediate texture for multisampled screenshots and less than whole viewport multisampled resolve, created on demand.
+    ID3D11Texture2D* resolveTexture_;
     /// Bound shader resource views.
     ID3D11ShaderResourceView* shaderResourceViews_[MAX_TEXTURE_UNITS];
     /// Bound sampler state objects.

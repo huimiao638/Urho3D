@@ -22,13 +22,13 @@
 
 #pragma once
 
-#include "../Graphics/Batch.h"
 #include "../Container/HashSet.h"
-#include "../Graphics/Light.h"
 #include "../Container/List.h"
 #include "../Core/Object.h"
-#include "../Math/Polyhedron.h"
+#include "../Graphics/Batch.h"
+#include "../Graphics/Light.h"
 #include "../Graphics/Zone.h"
+#include "../Math/Polyhedron.h"
 
 namespace Urho3D
 {
@@ -85,8 +85,6 @@ struct ScenePassInfo
     bool allowInstancing_;
     /// Mark to stencil flag.
     bool markToStencil_;
-    /// Light scissor optimization flag.
-    bool useScissor_;
     /// Vertex light flag.
     bool vertexLights_;
     /// Batch queue.
@@ -113,53 +111,76 @@ class URHO3D_API View : public Object
 {
     friend void CheckVisibilityWork(const WorkItem* item, unsigned threadIndex);
     friend void ProcessLightWork(const WorkItem* item, unsigned threadIndex);
-    
-    OBJECT(View);
-    
+
+    URHO3D_OBJECT(View, Object);
+
 public:
     /// Construct.
     View(Context* context);
     /// Destruct.
     virtual ~View();
-    
+
     /// Define with rendertarget and viewport. Return true if successful.
     bool Define(RenderSurface* renderTarget, Viewport* viewport);
     /// Update and cull objects and construct rendering batches.
     void Update(const FrameInfo& frame);
     /// Render batches.
     void Render();
-    
+
     /// Return graphics subsystem.
     Graphics* GetGraphics() const;
     /// Return renderer subsystem.
     Renderer* GetRenderer() const;
+
     /// Return scene.
     Scene* GetScene() const { return scene_; }
+
     /// Return octree.
     Octree* GetOctree() const { return octree_; }
-    /// Return camera.
+
+    /// Return viewport camera.
     Camera* GetCamera() const { return camera_; }
+
+    /// Return culling camera. Normally same as the viewport camera.
+    Camera* GetCullCamera() const { return cullCamera_; }
+
     /// Return information of the frame being rendered.
     const FrameInfo& GetFrameInfo() const { return frame_; }
+
     /// Return the rendertarget. 0 if using the backbuffer.
     RenderSurface* GetRenderTarget() const { return renderTarget_; }
+
     /// Return whether should draw debug geometry.
     bool GetDrawDebug() const { return drawDebug_; }
+
     /// Return geometry objects.
     const PODVector<Drawable*>& GetGeometries() const { return geometries_; }
+
     /// Return occluder objects.
     const PODVector<Drawable*>& GetOccluders() const { return occluders_; }
+
     /// Return lights.
     const PODVector<Light*>& GetLights() const { return lights_; }
+
     /// Return light batch queues.
     const Vector<LightBatchQueue>& GetLightQueues() const { return lightQueues_; }
+
+    /// Return the last used software occlusion buffer.
+    OcclusionBuffer* GetOcclusionBuffer() const { return occlusionBuffer_; }
+
+    /// Return number of occluders that were actually rendered. Occluders may be rejected if running out of triangles or if behind other occluders.
+    unsigned GetNumActiveOccluders() const { return activeOccluders_; }
+
+    /// Return the source view that was already prepared. Used when viewports specify the same culling camera.
+    View* GetSourceView() const;
+
     /// Set global (per-frame) shader parameters. Called by Batch and internally by View.
     void SetGlobalShaderParameters();
     /// Set camera-specific shader parameters. Called by Batch and internally by View.
     void SetCameraShaderParameters(Camera* camera, bool setProjectionMatrix);
     /// Set G-buffer offset and inverse size shader parameters. Called by Batch and internally by View.
     void SetGBufferShaderParameters(const IntVector2& texSize, const IntRect& viewRect);
-    
+
 private:
     /// Query the octree for drawable objects.
     void GetDrawables();
@@ -210,11 +231,14 @@ private:
     /// Set up a directional light shadow camera
     void SetupDirLightShadowCamera(Camera* shadowCamera, Light* light, float nearSplit, float farSplit);
     /// Finalize shadow camera view after shadow casters and the shadow map are known.
-    void FinalizeShadowCamera(Camera* shadowCamera, Light* light, const IntRect& shadowViewport, const BoundingBox& shadowCasterBox);
+    void
+        FinalizeShadowCamera(Camera* shadowCamera, Light* light, const IntRect& shadowViewport, const BoundingBox& shadowCasterBox);
     /// Quantize a directional light shadow camera view to eliminate swimming.
-    void QuantizeDirLightShadowCamera(Camera* shadowCamera, Light* light, const IntRect& shadowViewport, const BoundingBox& viewBox);
+    void
+        QuantizeDirLightShadowCamera(Camera* shadowCamera, Light* light, const IntRect& shadowViewport, const BoundingBox& viewBox);
     /// Check visibility of one shadow caster.
-    bool IsShadowCasterVisible(Drawable* drawable, BoundingBox lightViewBox, Camera* shadowCamera, const Matrix3x4& lightView, const Frustum& lightViewFrustum, const BoundingBox& lightViewFrustumBox);
+    bool IsShadowCasterVisible(Drawable* drawable, BoundingBox lightViewBox, Camera* shadowCamera, const Matrix3x4& lightView,
+        const Frustum& lightViewFrustum, const BoundingBox& lightViewFrustumBox);
     /// Return the viewport for a shadow map split.
     IntRect GetShadowMapViewport(Light* light, unsigned splitIndex, Texture2D* shadowMap);
     /// Find and set a new zone for a drawable when it has moved.
@@ -276,10 +300,12 @@ private:
     Scene* scene_;
     /// Octree to use.
     Octree* octree_;
-    /// Camera to use.
+    /// Viewport (rendering) camera.
     Camera* camera_;
-    /// Camera's scene node.
-    Node* cameraNode_;
+    /// Culling camera. Usually same as the viewport camera.
+    Camera* cullCamera_;
+    /// Shared source view. Null if this view is using its own culling.
+    WeakPtr<View> sourceView_;
     /// Zone the camera is inside, or default zone if not assigned.
     Zone* cameraZone_;
     /// Zone at far clip plane.
@@ -306,6 +332,8 @@ private:
     IntVector2 rtSize_;
     /// Information of the frame being rendered.
     FrameInfo frame_;
+    /// View aspect ratio.
+    float aspectRatio_;
     /// Minimum Z value of the visible scene.
     float minZ_;
     /// Maximum Z value of the visible scene.
@@ -318,6 +346,8 @@ private:
     int minInstances_;
     /// Highest zone priority currently visible.
     int highestZonePriority_;
+    /// Geometries updated flag.
+    bool geometriesUpdated_;
     /// Camera zone's override flag.
     bool cameraZoneOverride_;
     /// Draw shadows flag.
@@ -352,7 +382,9 @@ private:
     PODVector<Drawable*> occluders_;
     /// Lights.
     PODVector<Light*> lights_;
-    
+    /// Number of active occluders.
+    unsigned activeOccluders_;
+
     /// Drawables that limit their maximum light count.
     HashSet<Drawable*> maxLightsDrawables_;
     /// Rendertargets defined by the renderpath.
@@ -360,7 +392,7 @@ private:
     /// Intermediate light processing results.
     Vector<LightQueryResult> lightQueryResults_;
     /// Info for scene render passes defined by the renderpath.
-    Vector<ScenePassInfo> scenePasses_;
+    PODVector<ScenePassInfo> scenePasses_;
     /// Per-pixel light queues.
     Vector<LightBatchQueue> lightQueues_;
     /// Per-vertex light queues.

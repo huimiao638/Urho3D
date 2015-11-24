@@ -20,6 +20,8 @@
 // THE SOFTWARE.
 //
 
+#include "../Precompiled.h"
+
 #include "../Core/Context.h"
 #include "../Scene/Scene.h"
 #include "../Scene/SceneEvents.h"
@@ -104,7 +106,7 @@ void SmoothedTransform::SetTargetPosition(const Vector3& position)
     // Subscribe to smoothing update if not yet subscribed
     if (!subscribed_)
     {
-        SubscribeToEvent(GetScene(), E_UPDATESMOOTHING, HANDLER(SmoothedTransform, HandleUpdateSmoothing));
+        SubscribeToEvent(GetScene(), E_UPDATESMOOTHING, URHO3D_HANDLER(SmoothedTransform, HandleUpdateSmoothing));
         subscribed_ = true;
     }
 
@@ -118,7 +120,7 @@ void SmoothedTransform::SetTargetRotation(const Quaternion& rotation)
 
     if (!subscribed_)
     {
-        SubscribeToEvent(GetScene(), E_UPDATESMOOTHING, HANDLER(SmoothedTransform, HandleUpdateSmoothing));
+        SubscribeToEvent(GetScene(), E_UPDATESMOOTHING, URHO3D_HANDLER(SmoothedTransform, HandleUpdateSmoothing));
         subscribed_ = true;
     }
 

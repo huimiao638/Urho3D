@@ -35,7 +35,7 @@ class XMLFile;
 /// Sprite sheet.
 class URHO3D_API SpriteSheet2D : public Resource
 {
-    OBJECT(SpriteSheet2D);
+    URHO3D_OBJECT(SpriteSheet2D, Resource);
 
 public:
     /// Construct.
@@ -52,10 +52,12 @@ public:
 
     /// Return texture.
     Texture2D* GetTexture() const { return texture_; }
+
     /// Return sprite.
     Sprite2D* GetSprite(const String& name) const;
     /// Define sprite.
-    void DefineSprite(const String& name, const IntRect& rectangle, const Vector2& hotSpot = Vector2(0.5f, 0.5f), const IntVector2& offset = IntVector2::ZERO);
+    void DefineSprite(const String& name, const IntRect& rectangle, const Vector2& hotSpot = Vector2(0.5f, 0.5f),
+        const IntVector2& offset = IntVector2::ZERO);
 
     /// Return sprite mapping.
     const HashMap<String, SharedPtr<Sprite2D> >& GetSpriteMapping() const { return spriteMapping_; }

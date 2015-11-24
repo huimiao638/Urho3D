@@ -20,7 +20,11 @@
 // THE SOFTWARE.
 //
 
+#include "../Precompiled.h"
+
 #include "../Math/Plane.h"
+
+#include "../DebugNew.h"
 
 namespace Urho3D
 {
@@ -50,7 +54,7 @@ Matrix3x4 Plane::ReflectionMatrix() const
         -2.0f * normal_.x_ * normal_.y_,
         -2.0f * normal_.x_ * normal_.z_,
         -2.0f * normal_.x_ * d_,
-        -2.0f * normal_.y_ * normal_.x_ ,
+        -2.0f * normal_.y_ * normal_.x_,
         -2.0f * normal_.y_ * normal_.y_ + 1.0f,
         -2.0f * normal_.y_ * normal_.z_,
         -2.0f * normal_.y_ * d_,

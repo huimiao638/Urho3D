@@ -20,16 +20,16 @@
 // THE SOFTWARE.
 //
 
+#include "../Precompiled.h"
+
 #include "../Graphics/Camera.h"
 #include "../Graphics/Graphics.h"
-#include "../IO/Log.h"
 #include "../Graphics/Renderer.h"
 #include "../Graphics/RenderPath.h"
-#include "../Resource/ResourceCache.h"
-#include "../Scene/Scene.h"
 #include "../Graphics/View.h"
-#include "../Graphics/Viewport.h"
+#include "../Resource/ResourceCache.h"
 #include "../Resource/XMLFile.h"
+#include "../Scene/Scene.h"
 
 #include "../DebugNew.h"
 
@@ -78,6 +78,11 @@ void Viewport::SetCamera(Camera* camera)
     camera_ = camera;
 }
 
+void Viewport::SetCullCamera(Camera* camera)
+{
+    cullCamera_ = camera;
+}
+
 void Viewport::SetRect(const IntRect& rect)
 {
     rect_ = rect;
@@ -115,6 +120,11 @@ Scene* Viewport::GetScene() const
 Camera* Viewport::GetCamera() const
 {
     return camera_;
+}
+
+Camera* Viewport::GetCullCamera() const
+{
+    return cullCamera_;
 }
 
 View* Viewport::GetView() const
@@ -170,7 +180,7 @@ IntVector2 Viewport::WorldToScreenPoint(const Vector3& worldPos) const
         x = (int)(rect_.left_ + screenPoint.x_ * rect_.Width());
         y = (int)(rect_.top_ + screenPoint.y_ * rect_.Height());
     }
-    
+
     return IntVector2(x, y);
 }
 

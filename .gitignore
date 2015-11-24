@@ -17,13 +17,13 @@ generated/
 /Source/ThirdParty/LuaJIT/src/host/buildvm_arch.h
 /Source/Urho3D/Urho3D.h
 /Source/Urho3D/Urho3D.pc
+/Source/Urho3D/Urho3D.pc.msvc
 /Source/Urho3D/librevision.h
+/Source/Urho3D/Precompiled.cpp
 
 # Compiled shaders
-*.vs2
-*.vs3
-*.ps2
-*.ps3
+*.vs?
+*.ps?
 
 # Compiled AngelScript
 *.asc
@@ -34,7 +34,6 @@ generated/
 # Generated documentation
 /Docs/html/
 /Docs/qch/
-/Docs/Doxyfile
 
 # Eclipse project settings
 /.*project
@@ -45,6 +44,12 @@ generated/
 
 # Qt Creator project settings
 /CMakeLists.txt.user
+
+# JetBrains IDE project settings
+/.idea/
+
+# Custom rake tasks
+/.rake/
 
 # Android project settings
 /Android/project.properties

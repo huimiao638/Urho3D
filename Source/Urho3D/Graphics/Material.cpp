@@ -20,25 +20,25 @@
 // THE SOFTWARE.
 //
 
+#include "../Precompiled.h"
+
 #include "../Core/Context.h"
 #include "../Core/CoreEvents.h"
-#include "../IO/FileSystem.h"
-#include "../Graphics/Graphics.h"
-#include "../IO/Log.h"
-#include "../IO/VectorBuffer.h"
-#include "../Graphics/Material.h"
-#include "../Math/Matrix3x4.h"
 #include "../Core/Profiler.h"
-#include "../Resource/ResourceCache.h"
-#include "../Scene/Scene.h"
-#include "../Scene/SceneEvents.h"
-#include "../Core/StringUtils.h"
+#include "../Graphics/Graphics.h"
+#include "../Graphics/Material.h"
 #include "../Graphics/Technique.h"
 #include "../Graphics/Texture2D.h"
 #include "../Graphics/Texture3D.h"
 #include "../Graphics/TextureCube.h"
-#include "../Scene/ValueAnimation.h"
+#include "../IO/FileSystem.h"
+#include "../IO/Log.h"
+#include "../IO/VectorBuffer.h"
+#include "../Resource/ResourceCache.h"
 #include "../Resource/XMLFile.h"
+#include "../Scene/Scene.h"
+#include "../Scene/SceneEvents.h"
+#include "../Scene/ValueAnimation.h"
 
 #include "../DebugNew.h"
 
@@ -115,7 +115,7 @@ TextureUnit ParseTextureUnitName(String name)
     }
 
     if (unit == MAX_TEXTURE_UNITS)
-        LOGERROR("Unknown texture unit name " + name);
+        URHO3D_LOGERROR("Unknown texture unit name " + name);
 
     return unit;
 }
@@ -147,7 +147,8 @@ TechniqueEntry::~TechniqueEntry()
 {
 }
 
-ShaderParameterAnimationInfo::ShaderParameterAnimationInfo(Material* target, const String& name, ValueAnimation* attributeAnimation, WrapMode wrapMode, float speed) :
+ShaderParameterAnimationInfo::ShaderParameterAnimationInfo(Material* target, const String& name, ValueAnimation* attributeAnimation,
+    WrapMode wrapMode, float speed) :
     ValueAnimationInfo(target, attributeAnimation, wrapMode, speed),
     name_(name)
 {
@@ -220,14 +221,14 @@ bool Material::BeginLoad(Deserializer& source)
                 /// \todo Differentiate with 3D textures by actually reading the XML content
                 if (GetExtension(name) == ".xml")
                 {
-                    #ifdef DESKTOP_GRAPHICS
+#ifdef DESKTOP_GRAPHICS
                     TextureUnit unit = TU_DIFFUSE;
                     if (textureElem.HasAttribute("unit"))
                         unit = ParseTextureUnitName(textureElem.GetAttribute("unit"));
                     if (unit == TU_VOLUMEMAP)
                         cache->BackgroundLoadResource<Texture3D>(name, true, this);
                     else
-                    #endif
+#endif
                         cache->BackgroundLoadResource<TextureCube>(name, true, this);
                 }
                 else
@@ -281,7 +282,7 @@ bool Material::Load(const XMLElement& source)
 
     if (source.IsNull())
     {
-        LOGERROR("Can not load material from null XML element");
+        URHO3D_LOGERROR("Can not load material from null XML element");
         return false;
     }
 
@@ -289,7 +290,7 @@ bool Material::Load(const XMLElement& source)
 
     XMLElement techniqueElem = source.GetChild("technique");
     techniques_.Clear();
-    
+
     while (techniqueElem)
     {
         Technique* tech = cache->GetResource<Technique>(techniqueElem.GetAttribute("name"));
@@ -322,11 +323,11 @@ bool Material::Load(const XMLElement& source)
             /// \todo Differentiate with 3D textures by actually reading the XML content
             if (GetExtension(name) == ".xml")
             {
-                #ifdef DESKTOP_GRAPHICS
+#ifdef DESKTOP_GRAPHICS
                 if (unit == TU_VOLUMEMAP)
                     SetTexture(unit, cache->GetResource<Texture3D>(name));
                 else
-                #endif
+#endif
                     SetTexture(unit, cache->GetResource<TextureCube>(name));
             }
             else
@@ -352,7 +353,7 @@ bool Material::Load(const XMLElement& source)
         SharedPtr<ValueAnimation> animation(new ValueAnimation(context_));
         if (!animation->LoadXML(parameterAnimationElem))
         {
-            LOGERROR("Could not load parameter animation");
+            URHO3D_LOGERROR("Could not load parameter animation");
             return false;
         }
 
@@ -389,6 +390,10 @@ bool Material::Load(const XMLElement& source)
     if (depthBiasElem)
         SetDepthBias(BiasParameters(depthBiasElem.GetFloat("constant"), depthBiasElem.GetFloat("slopescaled")));
 
+    XMLElement renderOrderElem = source.GetChild("renderorder");
+    if (renderOrderElem)
+        SetRenderOrder((unsigned char)renderOrderElem.GetUInt("value"));
+
     RefreshShaderParameterHash();
     RefreshMemoryUse();
     CheckOcclusion();
@@ -399,7 +404,7 @@ bool Material::Save(XMLElement& dest) const
 {
     if (dest.IsNull())
     {
-        LOGERROR("Can not save material to null XML element");
+        URHO3D_LOGERROR("Can not save material to null XML element");
         return false;
     }
 
@@ -429,7 +434,8 @@ bool Material::Save(XMLElement& dest) const
     }
 
     // Write shader parameters
-    for (HashMap<StringHash, MaterialShaderParameter>::ConstIterator j = shaderParameters_.Begin(); j != shaderParameters_.End(); ++j)
+    for (HashMap<StringHash, MaterialShaderParameter>::ConstIterator j = shaderParameters_.Begin();
+         j != shaderParameters_.End(); ++j)
     {
         XMLElement parameterElem = dest.CreateChild("parameter");
         parameterElem.SetString("name", j->second_.name_);
@@ -437,7 +443,8 @@ bool Material::Save(XMLElement& dest) const
     }
 
     // Write shader parameter animations
-    for (HashMap<StringHash, SharedPtr<ShaderParameterAnimationInfo> >::ConstIterator j = shaderParameterAnimationInfos_.Begin(); j != shaderParameterAnimationInfos_.End(); ++j)
+    for (HashMap<StringHash, SharedPtr<ShaderParameterAnimationInfo> >::ConstIterator j = shaderParameterAnimationInfos_.Begin();
+         j != shaderParameterAnimationInfos_.End(); ++j)
     {
         ShaderParameterAnimationInfo* info = j->second_;
         XMLElement parameterAnimationElem = dest.CreateChild("parameteranimation");
@@ -464,6 +471,10 @@ bool Material::Save(XMLElement& dest) const
     XMLElement depthBiasElem = dest.CreateChild("depthbias");
     depthBiasElem.SetFloat("constant", depthBias_.constantBias_);
     depthBiasElem.SetFloat("slopescaled", depthBias_.slopeScaledBias_);
+
+    // Write render order
+    XMLElement renderOrderElem = dest.CreateChild("renderorder");
+    renderOrderElem.SetUInt("value", renderOrder_);
 
     return true;
 }
@@ -531,10 +542,10 @@ void Material::SetShaderParameterAnimation(const String& name, ValueAnimation* a
 
         if (shaderParameters_.Find(name) == shaderParameters_.End())
         {
-            LOGERROR(GetName() + " has no shader parameter: " + name);
+            URHO3D_LOGERROR(GetName() + " has no shader parameter: " + name);
             return;
         }
-        
+
         StringHash nameHash(name);
         shaderParameterAnimationInfos_[nameHash] = new ShaderParameterAnimationInfo(this, name, animation, wrapMode, speed);
         UpdateEventSubscription();
@@ -629,6 +640,11 @@ void Material::SetDepthBias(const BiasParameters& parameters)
     depthBias_.Validate();
 }
 
+void Material::SetRenderOrder(unsigned char order)
+{
+    renderOrder_ = order;
+}
+
 void Material::SetScene(Scene* scene)
 {
     UnsubscribeFromEvent(E_UPDATE);
@@ -673,6 +689,7 @@ SharedPtr<Material> Material::Clone(const String& cloneName) const
     ret->cullMode_ = cullMode_;
     ret->shadowCullMode_ = shadowCullMode_;
     ret->fillMode_ = fillMode_;
+    ret->renderOrder_ = renderOrder_;
     ret->RefreshMemoryUse();
 
     return ret;
@@ -747,7 +764,7 @@ String Material::GetTextureUnitName(TextureUnit unit)
 Variant Material::ParseShaderParameterValue(const String& value)
 {
     String valueTrimmed = value.Trimmed();
-    if (valueTrimmed.Length() && IsAlpha(valueTrimmed[0]))
+    if (valueTrimmed.Length() && IsAlpha((unsigned)valueTrimmed[0]))
         return Variant(ToBool(valueTrimmed));
     else
         return ToVectorVariant(valueTrimmed);
@@ -794,6 +811,7 @@ void Material::ResetToDefaults()
     shadowCullMode_ = CULL_CCW;
     fillMode_ = FILL_SOLID;
     depthBias_ = BiasParameters(0.0f, 0.0f);
+    renderOrder_ = DEFAULT_RENDER_ORDER;
 
     RefreshShaderParameterHash();
     RefreshMemoryUse();
@@ -802,7 +820,8 @@ void Material::ResetToDefaults()
 void Material::RefreshShaderParameterHash()
 {
     VectorBuffer temp;
-    for (HashMap<StringHash, MaterialShaderParameter>::ConstIterator i = shaderParameters_.Begin(); i != shaderParameters_.End(); ++i)
+    for (HashMap<StringHash, MaterialShaderParameter>::ConstIterator i = shaderParameters_.Begin();
+         i != shaderParameters_.End(); ++i)
     {
         temp.WriteStringHash(i->first_);
         temp.WriteVariant(i->second_.value_);
@@ -840,9 +859,9 @@ void Material::UpdateEventSubscription()
     if (shaderParameterAnimationInfos_.Size() && !subscribed_)
     {
         if (scene_)
-            SubscribeToEvent(scene_, E_ATTRIBUTEANIMATIONUPDATE, HANDLER(Material, HandleAttributeAnimationUpdate));
+            SubscribeToEvent(scene_, E_ATTRIBUTEANIMATIONUPDATE, URHO3D_HANDLER(Material, HandleAttributeAnimationUpdate));
         else
-            SubscribeToEvent(E_UPDATE, HANDLER(Material, HandleAttributeAnimationUpdate));
+            SubscribeToEvent(E_UPDATE, URHO3D_HANDLER(Material, HandleAttributeAnimationUpdate));
         subscribed_ = true;
     }
     else if (subscribed_)
@@ -859,7 +878,8 @@ void Material::HandleAttributeAnimationUpdate(StringHash eventType, VariantMap& 
     float timeStep = eventData[Update::P_TIMESTEP].GetFloat();
 
     Vector<String> finishedNames;
-    for (HashMap<StringHash, SharedPtr<ShaderParameterAnimationInfo> >::ConstIterator i = shaderParameterAnimationInfos_.Begin(); i != shaderParameterAnimationInfos_.End(); ++i)
+    for (HashMap<StringHash, SharedPtr<ShaderParameterAnimationInfo> >::ConstIterator i = shaderParameterAnimationInfos_.Begin();
+         i != shaderParameterAnimationInfos_.End(); ++i)
     {
         if (i->second_->Update(timeStep))
             finishedNames.Push(i->second_->GetName());

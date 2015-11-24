@@ -20,19 +20,20 @@
 // THE SOFTWARE.
 //
 
+#include "../Precompiled.h"
+
 #include "../Core/Context.h"
+#include "../Core/Profiler.h"
 #include "../Graphics/DebugRenderer.h"
 #include "../Graphics/Graphics.h"
+#include "../Graphics/Renderer.h"
 #include "../IO/Log.h"
+#include "../Scene/Scene.h"
+#include "../Scene/SceneEvents.h"
 #include "../Urho2D/PhysicsEvents2D.h"
 #include "../Urho2D/PhysicsUtils2D.h"
 #include "../Urho2D/PhysicsWorld2D.h"
-#include "../Core/Profiler.h"
-#include "../Graphics/Renderer.h"
 #include "../Urho2D/RigidBody2D.h"
-#include "../Scene/Scene.h"
-#include "../Scene/SceneEvents.h"
-#include "../Graphics/Viewport.h"
 
 #include "../DebugNew.h"
 
@@ -51,8 +52,9 @@ PhysicsWorld2D::PhysicsWorld2D(Context* context) :
     velocityIterations_(DEFAULT_VELOCITY_ITERATIONS),
     positionIterations_(DEFAULT_POSITION_ITERATIONS),
     debugRenderer_(0),
-    physicsSteping_(false),
-    applyingTransforms_(false)
+    physicsStepping_(false),
+    applyingTransforms_(false),
+    updateEnabled_(true)
 {
     // Set default debug draw flags
     m_drawFlags = e_shapeBit;
@@ -82,26 +84,28 @@ void PhysicsWorld2D::RegisterObject(Context* context)
 {
     context->RegisterFactory<PhysicsWorld2D>(SUBSYSTEM_CATEGORY);
 
-    ACCESSOR_ATTRIBUTE("Draw Shape", GetDrawShape, SetDrawShape, bool, false, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Draw Joint", GetDrawJoint, SetDrawJoint, bool, false, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Draw Aabb", GetDrawAabb, SetDrawAabb, bool, false, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Draw Pair", GetDrawPair, SetDrawPair, bool, false, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Draw CenterOfMass", GetDrawCenterOfMass, SetDrawCenterOfMass, bool, false, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Allow Sleeping", GetAllowSleeping, SetAllowSleeping, bool, false, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Warm Starting", GetWarmStarting, SetWarmStarting, bool, false, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Continuous Physics", GetContinuousPhysics, SetContinuousPhysics, bool, false, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Sub Stepping", GetSubStepping, SetSubStepping, bool, false, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Gravity", GetGravity, SetGravity, Vector2, DEFAULT_GRAVITY, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Auto Clear Forces", GetAutoClearForces, SetAutoClearForces, bool, false, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Velocity Iterations", GetVelocityIterations, SetVelocityIterations, int, DEFAULT_VELOCITY_ITERATIONS, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Position Iterations", GetPositionIterations, SetPositionIterations, int, DEFAULT_POSITION_ITERATIONS, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Draw Shape", GetDrawShape, SetDrawShape, bool, false, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Draw Joint", GetDrawJoint, SetDrawJoint, bool, false, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Draw Aabb", GetDrawAabb, SetDrawAabb, bool, false, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Draw Pair", GetDrawPair, SetDrawPair, bool, false, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Draw CenterOfMass", GetDrawCenterOfMass, SetDrawCenterOfMass, bool, false, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Allow Sleeping", GetAllowSleeping, SetAllowSleeping, bool, false, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Warm Starting", GetWarmStarting, SetWarmStarting, bool, false, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Continuous Physics", GetContinuousPhysics, SetContinuousPhysics, bool, false, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Sub Stepping", GetSubStepping, SetSubStepping, bool, false, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Gravity", GetGravity, SetGravity, Vector2, DEFAULT_GRAVITY, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Auto Clear Forces", GetAutoClearForces, SetAutoClearForces, bool, false, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Velocity Iterations", GetVelocityIterations, SetVelocityIterations, int, DEFAULT_VELOCITY_ITERATIONS,
+        AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Position Iterations", GetPositionIterations, SetPositionIterations, int, DEFAULT_POSITION_ITERATIONS,
+        AM_DEFAULT);
 }
 
 void PhysicsWorld2D::DrawDebugGeometry(DebugRenderer* debug, bool depthTest)
 {
     if (debug)
     {
-        PROFILE(Physics2DDrawDebug);
+        URHO3D_PROFILE(Physics2DDrawDebug);
 
         debugRenderer_ = debug;
         debugDepthTest_ = depthTest;
@@ -112,8 +116,8 @@ void PhysicsWorld2D::DrawDebugGeometry(DebugRenderer* debug, bool depthTest)
 
 void PhysicsWorld2D::BeginContact(b2Contact* contact)
 {
-    // Only handle contact event when physics steping
-    if (!physicsSteping_)
+    // Only handle contact event while stepping the physics simulation
+    if (!physicsStepping_)
         return;
 
     b2Fixture* fixtureA = contact->GetFixtureA();
@@ -126,8 +130,7 @@ void PhysicsWorld2D::BeginContact(b2Contact* contact)
 
 void PhysicsWorld2D::EndContact(b2Contact* contact)
 {
-    // Only handle contact event when physics steping
-    if (!physicsSteping_)
+    if (!physicsStepping_)
         return;
 
     b2Fixture* fixtureA = contact->GetFixtureA();
@@ -223,6 +226,8 @@ void PhysicsWorld2D::DrawTransform(const b2Transform& xf)
 
 void PhysicsWorld2D::Update(float timeStep)
 {
+    URHO3D_PROFILE(UpdatePhysics2D);
+
     using namespace PhysicsPreStep2D;
 
     VariantMap& eventData = GetEventDataMap();
@@ -230,9 +235,9 @@ void PhysicsWorld2D::Update(float timeStep)
     eventData[P_TIMESTEP] = timeStep;
     SendEvent(E_PHYSICSPRESTEP2D, eventData);
 
-    physicsSteping_ = true;
+    physicsStepping_ = true;
     world_->Step(timeStep, velocityIterations_, positionIterations_);
-    physicsSteping_ = false;
+    physicsStepping_ = false;
 
     for (unsigned i = 0; i < rigidBodies_.Size(); ++i)
         rigidBodies_[i]->ApplyWorldTransform();
@@ -249,6 +254,11 @@ void PhysicsWorld2D::DrawDebugGeometry()
     DebugRenderer* debug = GetComponent<DebugRenderer>();
     if (debug)
         DrawDebugGeometry(debug, false);
+}
+
+void PhysicsWorld2D::SetUpdateEnabled(bool enable)
+{
+    updateEnabled_ = enable;
 }
 
 void PhysicsWorld2D::SetDrawShape(bool drawShape)
@@ -396,7 +406,8 @@ protected:
     unsigned collisionMask_;
 };
 
-void PhysicsWorld2D::Raycast(PODVector<PhysicsRaycastResult2D>& results, const Vector2& startPoint, const Vector2& endPoint, unsigned collisionMask)
+void PhysicsWorld2D::Raycast(PODVector<PhysicsRaycastResult2D>& results, const Vector2& startPoint, const Vector2& endPoint,
+    unsigned collisionMask)
 {
     results.Clear();
 
@@ -427,7 +438,7 @@ public:
         if ((fixture->GetFilterData().maskBits & collisionMask_) == 0)
             return true;
 
-        float distance = (ToVector2(point)- startPoint_).Length();
+        float distance = (ToVector2(point) - startPoint_).Length();
         if (distance < minDistance_)
         {
             minDistance_ = distance;
@@ -452,7 +463,8 @@ private:
     float minDistance_;
 };
 
-void PhysicsWorld2D::RaycastSingle(PhysicsRaycastResult2D& result, const Vector2& startPoint, const Vector2& endPoint, unsigned collisionMask)
+void PhysicsWorld2D::RaycastSingle(PhysicsRaycastResult2D& result, const Vector2& startPoint, const Vector2& endPoint,
+    unsigned collisionMask)
 {
     result.body_ = 0;
 
@@ -519,7 +531,7 @@ RigidBody2D* PhysicsWorld2D::GetRigidBody(const Vector2& point, unsigned collisi
 RigidBody2D* PhysicsWorld2D::GetRigidBody(int screenX, int screenY, unsigned collisionMask)
 {
     Renderer* renderer = GetSubsystem<Renderer>();
-    for (unsigned i = 0; i  < renderer->GetNumViewports(); ++i)
+    for (unsigned i = 0; i < renderer->GetNumViewports(); ++i)
     {
         Viewport* viewport = renderer->GetViewport(i);
         // Find a viewport with same scene
@@ -602,18 +614,20 @@ bool PhysicsWorld2D::GetAutoClearForces() const
     return world_->GetAutoClearForces();
 }
 
-void PhysicsWorld2D::OnNodeSet(Node* node)
+void PhysicsWorld2D::OnSceneSet(Scene* scene)
 {
     // Subscribe to the scene subsystem update, which will trigger the physics simulation step
-    if (node)
-    {
-        scene_ = GetScene();
-        SubscribeToEvent(node, E_SCENESUBSYSTEMUPDATE, HANDLER(PhysicsWorld2D, HandleSceneSubsystemUpdate));
-    }
+    if (scene)
+        SubscribeToEvent(scene, E_SCENESUBSYSTEMUPDATE, URHO3D_HANDLER(PhysicsWorld2D, HandleSceneSubsystemUpdate));
+    else
+        UnsubscribeFromEvent(E_SCENESUBSYSTEMUPDATE);
 }
 
 void PhysicsWorld2D::HandleSceneSubsystemUpdate(StringHash eventType, VariantMap& eventData)
 {
+    if (!updateEnabled_)
+        return;
+
     using namespace SceneSubsystemUpdate;
     Update(eventData[P_TIMESTEP].GetFloat());
 }
@@ -643,7 +657,7 @@ void PhysicsWorld2D::SendBeginContactEvents()
 
 void PhysicsWorld2D::SendEndContactEvents()
 {
-   if (endContactInfos_.Empty())
+    if (endContactInfos_.Empty())
         return;
 
     using namespace PhysicsEndContact2D;

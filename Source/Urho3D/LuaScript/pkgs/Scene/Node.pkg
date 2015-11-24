@@ -94,9 +94,9 @@ class Node : public Animatable
     void RemoveComponent(Component* component);
     void RemoveComponent(StringHash type);
     void RemoveComponent(const String type);
-
-    void RemoveAllComponents();
     void RemoveComponents(bool removeReplicated, bool removeLocal);
+    void RemoveComponents(const String type);
+    void RemoveAllComponents();
 
     Node* Clone(CreateMode mode = REPLICATED);
 
@@ -173,7 +173,9 @@ class Node : public Animatable
     const VariantMap& GetVars() const;
 
     // template <class T> T* GetComponent() const;
-    Component* GetComponent(const String type) const;
+    Component* GetComponent(const String type, bool recursive = false) const;
+    // template <class T> T* GetParentComponent() const;
+    Component* GetParentComponent(const String type, bool recursive = false) const;
 
     // template <class T> void GetComponents(PODVector<T*>& dest, bool recursive = false) const;
     tolua_outside const PODVector<Component*>& NodeGetComponentsWithType @ GetComponents(const String type, bool recursive = false);

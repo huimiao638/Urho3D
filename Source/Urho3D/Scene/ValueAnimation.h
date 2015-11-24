@@ -22,8 +22,8 @@
 
 #pragma once
 
-#include "../Resource/Resource.h"
 #include "../Core/Variant.h"
+#include "../Resource/Resource.h"
 
 namespace Urho3D
 {
@@ -62,7 +62,7 @@ struct VAnimEventFrame
 /// Value animation class.
 class URHO3D_API ValueAnimation : public Resource
 {
-    OBJECT(ValueAnimation);
+    URHO3D_OBJECT(ValueAnimation, Resource);
 
 public:
     /// Construct.
@@ -72,8 +72,8 @@ public:
     /// Register object factory.
     static void RegisterObject(Context* context);
 
-    /// Load resource. Return true if successful.
-    virtual bool Load(Deserializer& source);
+    /// Load resource from stream. May be called from a worker thread. Return true if successful.
+    virtual bool BeginLoad(Deserializer& source);
     /// Save resource. Return true if successful.
     virtual bool Save(Serializer& dest) const;
     /// Load from XML data. Return true if successful.
@@ -89,7 +89,7 @@ public:
     void SetSplineTension(float tension);
     /// Set value type.
     void SetValueType(VariantType valueType);
-    
+
     /// Set key frame.
     bool SetKeyFrame(float time, const Variant& value);
     /// Set event frame.
@@ -97,22 +97,31 @@ public:
 
     /// Return animation is valid.
     bool IsValid() const;
+
     /// Return owner.
     void* GetOwner() const { return owner_; }
+
     /// Return interpolation method.
     InterpMethod GetInterpolationMethod() const { return interpolationMethod_; }
+
     /// Return spline tension.
     float GetSplineTension() const { return splineTension_; }
+
     /// Return value type.
     VariantType GetValueType() const { return valueType_; }
+
     /// Return begin time.
     float GetBeginTime() const { return beginTime_; }
+
     /// Return end time.
     float GetEndTime() const { return endTime_; }
+
     /// Return animation value.
     Variant GetAnimationValue(float scaledTime);
+
     /// Has event frames.
     bool HasEventFrames() const { return !eventFrames_.Empty(); }
+
     /// Return all event frames between time.
     void GetEventFrames(float beginTime, float endTime, PODVector<const VAnimEventFrame*>& eventFrames) const;
 

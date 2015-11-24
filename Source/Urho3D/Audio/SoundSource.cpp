@@ -20,14 +20,14 @@
 // THE SOFTWARE.
 //
 
+#include "../Precompiled.h"
+
 #include "../Audio/Audio.h"
-#include "../Core/Context.h"
-#include "../Resource/ResourceCache.h"
 #include "../Audio/Sound.h"
 #include "../Audio/SoundSource.h"
 #include "../Audio/SoundStream.h"
-
-#include <cstring>
+#include "../Core/Context.h"
+#include "../Resource/ResourceCache.h"
 
 #include "../DebugNew.h"
 
@@ -115,7 +115,7 @@ SoundSource::SoundSource(Context* context) :
 
     if (audio_)
         audio_->AddSoundSource(this);
-    
+
     UpdateMasterGain();
 }
 
@@ -129,16 +129,16 @@ void SoundSource::RegisterObject(Context* context)
 {
     context->RegisterFactory<SoundSource>(AUDIO_CATEGORY);
 
-    ACCESSOR_ATTRIBUTE("Is Enabled", IsEnabled, SetEnabled, bool, true, AM_DEFAULT);
-    MIXED_ACCESSOR_ATTRIBUTE("Sound", GetSoundAttr, SetSoundAttr, ResourceRef, ResourceRef(Sound::GetTypeStatic()), AM_DEFAULT);
-    MIXED_ACCESSOR_ATTRIBUTE("Type", GetSoundType, SetSoundType, String, SOUND_EFFECT, AM_DEFAULT);
-    ATTRIBUTE("Frequency", float, frequency_, 0.0f, AM_DEFAULT);
-    ATTRIBUTE("Gain", float, gain_, 1.0f, AM_DEFAULT);
-    ATTRIBUTE("Attenuation", float, attenuation_, 1.0f, AM_DEFAULT);
-    ATTRIBUTE("Panning", float, panning_, 0.0f, AM_DEFAULT);
-    ACCESSOR_ATTRIBUTE("Is Playing", IsPlaying, SetPlayingAttr, bool, false, AM_DEFAULT);
-    ATTRIBUTE("Autoremove on Stop", bool, autoRemove_, false, AM_FILE);
-    ACCESSOR_ATTRIBUTE("Play Position", GetPositionAttr, SetPositionAttr, int, 0, AM_FILE);
+    URHO3D_ACCESSOR_ATTRIBUTE("Is Enabled", IsEnabled, SetEnabled, bool, true, AM_DEFAULT);
+    URHO3D_MIXED_ACCESSOR_ATTRIBUTE("Sound", GetSoundAttr, SetSoundAttr, ResourceRef, ResourceRef(Sound::GetTypeStatic()), AM_DEFAULT);
+    URHO3D_MIXED_ACCESSOR_ATTRIBUTE("Type", GetSoundType, SetSoundType, String, SOUND_EFFECT, AM_DEFAULT);
+    URHO3D_ATTRIBUTE("Frequency", float, frequency_, 0.0f, AM_DEFAULT);
+    URHO3D_ATTRIBUTE("Gain", float, gain_, 1.0f, AM_DEFAULT);
+    URHO3D_ATTRIBUTE("Attenuation", float, attenuation_, 1.0f, AM_DEFAULT);
+    URHO3D_ATTRIBUTE("Panning", float, panning_, 0.0f, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Is Playing", IsPlaying, SetPlayingAttr, bool, false, AM_DEFAULT);
+    URHO3D_ATTRIBUTE("Autoremove on Stop", bool, autoRemove_, false, AM_FILE);
+    URHO3D_ACCESSOR_ATTRIBUTE("Play Position", GetPositionAttr, SetPositionAttr, int, 0, AM_FILE);
 }
 
 void SoundSource::Play(Sound* sound)
@@ -236,7 +236,7 @@ void SoundSource::SetSoundType(const String& type)
     soundType_ = type;
     soundTypeHash_ = StringHash(type);
     UpdateMasterGain();
-    
+
     MarkNetworkUpdate();
 }
 
@@ -337,12 +337,12 @@ void SoundSource::Mix(int* dest, unsigned samples, int mixRate, bool stereo, boo
         position_ = streamBuffer_->GetStart();
 
         // Request new data from the stream
-        signed char* dest = streamBuffer_->GetStart() + unusedStreamSize_;
-        outBytes = neededSize ? soundStream_->GetData(dest, neededSize) : 0;
-        dest += outBytes;
+        signed char* destination = streamBuffer_->GetStart() + unusedStreamSize_;
+        outBytes = neededSize ? soundStream_->GetData(destination, (unsigned)neededSize) : 0;
+        destination += outBytes;
         // Zero-fill rest if stream did not produce enough data
         if (outBytes < neededSize)
-            memset(dest, 0, neededSize - outBytes);
+            memset(destination, 0, (size_t)(neededSize - outBytes));
 
         // Calculate amount of total bytes of data in stream buffer now, to know how much went unused after mixing
         streamFilledSize = neededSize + unusedStreamSize_;
@@ -396,7 +396,7 @@ void SoundSource::Mix(int* dest, unsigned samples, int mixRate, bool stereo, boo
 
         unusedStreamSize_ = Max(streamFilledSize - (int)(size_t)(position_ - streamBuffer_->GetStart()), 0);
         if (unusedStreamSize_)
-            memcpy(streamBuffer_->GetStart(), (const void*)position_, unusedStreamSize_);
+            memcpy(streamBuffer_->GetStart(), (const void*)position_, (size_t)unusedStreamSize_);
 
         // If stream did not produce any data, stop if applicable
         if (!outBytes && soundStream_->GetStopAtEnd())

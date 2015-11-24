@@ -20,13 +20,19 @@
 // THE SOFTWARE.
 //
 
-#include "../Scene/Component.h"
+#include "../Precompiled.h"
+
 #include "../Core/Context.h"
+#include "../Scene/Component.h"
 #include "../Scene/ReplicationState.h"
 #include "../Scene/Scene.h"
 #include "../Scene/SceneEvents.h"
 
 #include "../DebugNew.h"
+
+#ifdef _MSC_VER
+#pragma warning(disable:6293)
+#endif
 
 namespace Urho3D
 {
@@ -168,8 +174,8 @@ void Component::PrepareNetworkUpdate()
             networkState_->previousValues_[i] = networkState_->currentValues_[i];
 
             // Mark the attribute dirty in all replication states that are tracking this component
-            for (PODVector<ReplicationState*>::Iterator j = networkState_->replicationStates_.Begin(); j !=
-                networkState_->replicationStates_.End(); ++j)
+            for (PODVector<ReplicationState*>::Iterator j = networkState_->replicationStates_.Begin();
+                 j != networkState_->replicationStates_.End(); ++j)
             {
                 ComponentReplicationState* compState = static_cast<ComponentReplicationState*>(*j);
                 compState->dirtyAttributes_.Set(i);
@@ -203,7 +209,7 @@ void Component::CleanupConnection(Connection* connection)
 void Component::OnAttributeAnimationAdded()
 {
     if (attributeAnimationInfos_.Size() == 1)
-        SubscribeToEvent(GetScene(), E_ATTRIBUTEANIMATIONUPDATE, HANDLER(Component, HandleAttributeAnimationUpdate));
+        SubscribeToEvent(GetScene(), E_ATTRIBUTEANIMATIONUPDATE, URHO3D_HANDLER(Component, HandleAttributeAnimationUpdate));
 }
 
 void Component::OnAttributeAnimationRemoved()
@@ -213,6 +219,10 @@ void Component::OnAttributeAnimationRemoved()
 }
 
 void Component::OnNodeSet(Node* node)
+{
+}
+
+void Component::OnSceneSet(Scene* scene)
 {
 }
 

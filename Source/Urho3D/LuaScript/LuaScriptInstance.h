@@ -40,6 +40,7 @@ enum LuaScriptObjectMethod
 {
     LSOM_START = 0,
     LSOM_STOP,
+    LSOM_DELAYEDSTART,
     LSOM_UPDATE,
     LSOM_POSTUPDATE,
     LSOM_FIXEDUPDATE,
@@ -56,7 +57,7 @@ enum LuaScriptObjectMethod
 /// Lua script object component.
 class URHO3D_API LuaScriptInstance : public Component, public LuaScriptEventListener
 {
-    OBJECT(LuaScriptInstance);
+    URHO3D_OBJECT(LuaScriptInstance, Component);
 
 public:
     /// Construct.
@@ -70,8 +71,10 @@ public:
     virtual void OnSetAttribute(const AttributeInfo& attr, const Variant& src);
     /// Handle attribute read access.
     virtual void OnGetAttribute(const AttributeInfo& attr, Variant& dest) const;
+
     /// Return attribute descriptions, or null if none defined.
     virtual const Vector<AttributeInfo>* GetAttributes() const { return &attributeInfos_; }
+
     /// Apply attribute changes that can not be applied immediately. Called after scene load or a network update.
     virtual void ApplyAttributes();
     /// Handle enabled/disabled state change.
@@ -111,10 +114,13 @@ public:
 
     /// Return script file.
     LuaFile* GetScriptFile() const;
+
     /// Return script object type.
     const String& GetScriptObjectType() const { return scriptObjectType_; }
-    /// Return script object ref.
+
+    /// Return Lua reference to script object.
     int GetScriptObjectRef() const { return scriptObjectRef_; }
+
     /// Get script file serialization attribute by calling a script function.
     PODVector<unsigned char> GetScriptDataAttr() const;
     /// Get script network serialization attribute by calling a script function.
@@ -128,6 +134,8 @@ public:
     ResourceRef GetScriptFileAttr() const;
 
 protected:
+    /// Handle scene being assigned.
+    virtual void OnSceneSet(Scene* scene);
     /// Handle node transform being dirtied.
     virtual void OnMarkedDirty(Node* node);
 
@@ -165,7 +173,7 @@ private:
     String scriptObjectType_;
     /// Attributes, including script object variables.
     Vector<AttributeInfo> attributeInfos_;
-    /// Script object ref.
+    /// Lua reference to script object.
     int scriptObjectRef_;
     /// Script object method.
     LuaFunction* scriptObjectMethods_[MAX_LUA_SCRIPT_OBJECT_METHODS];

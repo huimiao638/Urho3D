@@ -20,13 +20,15 @@
 // THE SOFTWARE.
 //
 
+#include "../Precompiled.h"
+
 #include "../Core/Context.h"
+#include "../Graphics/Texture2D.h"
 #include "../IO/Deserializer.h"
 #include "../Resource/ResourceCache.h"
 #include "../Urho2D/Drawable2D.h"
 #include "../Urho2D/Sprite2D.h"
 #include "../Urho2D/SpriteSheet2D.h"
-#include "../Graphics/Texture2D.h"
 
 #include "../DebugNew.h"
 
@@ -34,7 +36,7 @@ namespace Urho3D
 {
 
 Sprite2D::Sprite2D(Context* context) :
-    Resource(context), 
+    Resource(context),
     hotSpot_(0.5f, 0.5f),
     offset_(0, 0)
 {
@@ -55,7 +57,7 @@ bool Sprite2D::BeginLoad(Deserializer& source)
 {
     if (GetName().Empty())
         SetName(source.GetName());
-    
+
     // Reload
     if (texture_)
         loadTexture_ = texture_;
@@ -74,7 +76,7 @@ bool Sprite2D::BeginLoad(Deserializer& source)
         loadTexture_.Reset();
         return false;
     }
-    
+
     return true;
 }
 
@@ -86,7 +88,7 @@ bool Sprite2D::EndLoad()
     {
         success = true;
         SetTexture(loadTexture_);
-        
+
         if (texture_)
             SetRectangle(IntRect(0, 0, texture_->GetWidth(), texture_->GetHeight()));
     }
@@ -137,23 +139,16 @@ bool Sprite2D::GetDrawRectangle(Rect& rect, const Vector2& hotSpot, bool flipX, 
         return false;
 
     float width = (float)rectangle_.Width() * PIXEL_SIZE;
-    float height = (float)rectangle_.Height() * PIXEL_SIZE;        
+    float height = (float)rectangle_.Height() * PIXEL_SIZE;
 
     float hotSpotX = flipX ? (1.0f - hotSpot.x_) : hotSpot.x_;
     float hotSpotY = flipY ? (1.0f - hotSpot.y_) : hotSpot.y_;
 
-#ifdef URHO3D_OPENGL
     rect.min_.x_ = -width * hotSpotX;
     rect.max_.x_ = width * (1.0f - hotSpotX);
     rect.min_.y_ = -height * hotSpotY;
     rect.max_.y_ = height * (1.0f - hotSpotY);
-#else
-    const float halfPixelOffset = 0.5f * PIXEL_SIZE;
-    rect.min_.x_ = -width * hotSpotX + halfPixelOffset;
-    rect.max_.x_ = width * (1.0f - hotSpotX) + halfPixelOffset;
-    rect.min_.y_ = -height * hotSpotY + halfPixelOffset;
-    rect.max_.y_ = height * (1.0f - hotSpotY) + halfPixelOffset;
-#endif
+
     return true;
 }
 
@@ -173,7 +168,7 @@ bool Sprite2D::GetTextureRectangle(Rect& rect, bool flipX, bool flipY) const
 
     if (flipX)
         Swap(rect.min_.x_, rect.max_.x_);
-    
+
     if (flipY)
         Swap(rect.min_.y_, rect.max_.y_);
 

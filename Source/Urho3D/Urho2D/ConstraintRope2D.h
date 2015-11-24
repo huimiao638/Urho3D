@@ -30,11 +30,11 @@ namespace Urho3D
 /// 2D rope constraint component.
 class URHO3D_API ConstraintRope2D : public Constraint2D
 {
-    OBJECT(ConstraintRope2D);
+    URHO3D_OBJECT(ConstraintRope2D, Constraint2D);
 
 public:
     /// Construct.
-    ConstraintRope2D(Context* scontext);
+    ConstraintRope2D(Context* context);
     /// Destruct.
     virtual ~ConstraintRope2D();
     /// Register object factory.
@@ -49,8 +49,10 @@ public:
 
     /// Return owner body anchor.
     const Vector2& GetOwnerBodyAnchor() const { return ownerBodyAnchor_; }
+
     /// Return other body anchor.
     const Vector2& GetOtherBodyAnchor() const { return otherBodyAnchor_; }
+
     /// Return max length.
     float GetMaxLength() const { return jointDef_.maxLength; }
 

@@ -20,16 +20,17 @@
 // THE SOFTWARE.
 //
 
+#include "../../Precompiled.h"
+
 #include "../../Graphics/Graphics.h"
 #include "../../Graphics/GraphicsImpl.h"
-#include "../../IO/Log.h"
 #include "../../Graphics/ConstantBuffer.h"
+#include "../../IO/Log.h"
 
 #include "../../DebugNew.h"
 
 namespace Urho3D
 {
-
 
 ConstantBuffer::ConstantBuffer(Context* context) :
     Object(context),
@@ -63,7 +64,7 @@ bool ConstantBuffer::SetSize(unsigned size)
 
     if (!size)
     {
-        LOGERROR("Can not create zero-sized constant buffer");
+        URHO3D_LOGERROR("Can not create zero-sized constant buffer");
         return false;
     }
 
@@ -90,7 +91,7 @@ bool ConstantBuffer::SetSize(unsigned size)
 
         if (!object_)
         {
-            LOGERROR("Failed to create constant buffer");
+            URHO3D_LOGERROR("Failed to create constant buffer");
             return false;
         }
     }

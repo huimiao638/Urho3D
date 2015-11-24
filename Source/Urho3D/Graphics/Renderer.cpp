@@ -20,33 +20,39 @@
 // THE SOFTWARE.
 //
 
-#include "../Graphics/Camera.h"
+#include "../Precompiled.h"
+
 #include "../Core/CoreEvents.h"
+#include "../Core/Profiler.h"
+#include "../Graphics/Camera.h"
 #include "../Graphics/DebugRenderer.h"
 #include "../Graphics/Geometry.h"
 #include "../Graphics/Graphics.h"
 #include "../Graphics/GraphicsEvents.h"
 #include "../Graphics/GraphicsImpl.h"
 #include "../Graphics/IndexBuffer.h"
-#include "../IO/Log.h"
 #include "../Graphics/Material.h"
 #include "../Graphics/OcclusionBuffer.h"
 #include "../Graphics/Octree.h"
-#include "../Core/Profiler.h"
 #include "../Graphics/Renderer.h"
 #include "../Graphics/RenderPath.h"
-#include "../Resource/ResourceCache.h"
-#include "../Scene/Scene.h"
 #include "../Graphics/ShaderVariation.h"
 #include "../Graphics/Technique.h"
 #include "../Graphics/Texture2D.h"
 #include "../Graphics/TextureCube.h"
 #include "../Graphics/VertexBuffer.h"
 #include "../Graphics/View.h"
-#include "../Resource/XMLFile.h"
 #include "../Graphics/Zone.h"
+#include "../IO/Log.h"
+#include "../Resource/ResourceCache.h"
+#include "../Resource/XMLFile.h"
+#include "../Scene/Scene.h"
 
 #include "../DebugNew.h"
+
+#ifdef _MSC_VER
+#pragma warning(disable:6293)
+#endif
 
 namespace Urho3D
 {
@@ -149,7 +155,7 @@ static const float spotLightVertexData[] =
     -0.00001f, 0.00001f, 0.00001f,
     1.00000f, 1.00000f, 0.99999f,
     1.00000f, -1.00000f, 0.99999f,
-    -1.00000f,  -1.00000f, 0.99999f,
+    -1.00000f, -1.00000f, 0.99999f,
     -1.00000f, 1.00000f, 0.99999f,
 };
 
@@ -171,18 +177,18 @@ static const unsigned short spotLightIndexData[] =
 
 static const char* shadowVariations[] =
 {
-    #ifdef URHO3D_OPENGL
+#ifdef URHO3D_OPENGL
     // No specific hardware shadow compare variation on OpenGL, it is always supported
     "LQSHADOW ",
     "LQSHADOW ",
     "",
     ""
-    #else
+#else
     "LQSHADOW SHADOWCMP ",
     "LQSHADOW ",
     "SHADOWCMP ",
     ""
-    #endif
+#endif
 };
 
 static const char* geometryVSVariations[] =
@@ -220,7 +226,7 @@ static const char* deferredLightVSVariations[] =
     "DIRLIGHT ORTHO "
 };
 
-static const char* lightPSVariations[] = 
+static const char* lightPSVariations[] =
 {
     "PERPIXEL DIRLIGHT ",
     "PERPIXEL SPOTLIGHT ",
@@ -274,12 +280,13 @@ Renderer::Renderer(Context* context) :
     drawShadows_(true),
     reuseShadowMaps_(true),
     dynamicInstancing_(true),
+    threadedOcclusion_(false),
     shadersDirty_(true),
     initialized_(false),
     resetViews_(false)
 {
-    SubscribeToEvent(E_SCREENMODE, HANDLER(Renderer, HandleScreenMode));
-    
+    SubscribeToEvent(E_SCREENMODE, URHO3D_HANDLER(Renderer, HandleScreenMode));
+
     // Try to initialize right now, but skip if screen mode is not yet set
     Initialize();
 }
@@ -297,7 +304,7 @@ void Renderer::SetViewport(unsigned index, Viewport* viewport)
 {
     if (index >= viewports_.Size())
         viewports_.Resize(index + 1);
-    
+
     viewports_[index] = viewport;
 }
 
@@ -337,7 +344,7 @@ void Renderer::SetTextureFilterMode(TextureFilterMode mode)
 void Renderer::SetTextureQuality(int quality)
 {
     quality = Clamp(quality, QUALITY_LOW, QUALITY_HIGH);
-    
+
     if (quality != textureQuality_)
     {
         textureQuality_ = quality;
@@ -348,7 +355,7 @@ void Renderer::SetTextureQuality(int quality)
 void Renderer::SetMaterialQuality(int quality)
 {
     quality = Clamp(quality, QUALITY_LOW, QUALITY_MAX);
-    
+
     if (quality != materialQuality_)
     {
         materialQuality_ = quality;
@@ -362,7 +369,7 @@ void Renderer::SetDrawShadows(bool enable)
 {
     if (!graphics_ || !graphics_->GetShadowMapFormat())
         return;
-    
+
     drawShadows_ = enable;
     if (!drawShadows_)
         ResetShadowMaps();
@@ -372,8 +379,8 @@ void Renderer::SetShadowMapSize(int size)
 {
     if (!graphics_)
         return;
-    
-    size = NextPowerOfTwo(Max(size, SHADOW_MIN_PIXELS));
+
+    size = NextPowerOfTwo((unsigned)Max(size, SHADOW_MIN_PIXELS));
     if (size != shadowMapSize_)
     {
         shadowMapSize_ = size;
@@ -385,15 +392,15 @@ void Renderer::SetShadowQuality(int quality)
 {
     if (!graphics_)
         return;
-    
+
     quality &= SHADOWQUALITY_HIGH_24BIT;
-    
+
     // If no hardware PCF, do not allow to select one-sample quality
     if (!graphics_->GetHardwareShadowSupport())
         quality |= SHADOWQUALITY_HIGH_16BIT;
     if (!graphics_->GetHiresShadowMapFormat())
         quality &= SHADOWQUALITY_HIGH_16BIT;
-    
+
     if (quality != shadowQuality_)
     {
         shadowQuality_ = quality;
@@ -406,7 +413,7 @@ void Renderer::SetReuseShadowMaps(bool enable)
 {
     if (enable == reuseShadowMaps_)
         return;
-    
+
     reuseShadowMaps_ = enable;
 }
 
@@ -414,12 +421,12 @@ void Renderer::SetMaxShadowMaps(int shadowMaps)
 {
     if (shadowMaps < 1)
         return;
-    
+
     maxShadowMaps_ = shadowMaps;
     for (HashMap<int, Vector<SharedPtr<Texture2D> > >::Iterator i = shadowMaps_.Begin(); i != shadowMaps_.End(); ++i)
     {
         if ((int)i->second_.Size() > maxShadowMaps_)
-            i->second_.Resize(maxShadowMaps_);
+            i->second_.Resize((unsigned)maxShadowMaps_);
     }
 }
 
@@ -427,7 +434,7 @@ void Renderer::SetDynamicInstancing(bool enable)
 {
     if (!instancingBuffer_)
         enable = false;
-    
+
     dynamicInstancing_ = enable;
 }
 
@@ -467,6 +474,15 @@ void Renderer::SetOccluderSizeThreshold(float screenSize)
     occluderSizeThreshold_ = Max(screenSize, 0.0f);
 }
 
+void Renderer::SetThreadedOcclusion(bool enable)
+{
+    if (enable != threadedOcclusion_)
+    {
+        threadedOcclusion_ = enable;
+        occlusionBuffers_.Clear();
+    }
+}
+
 void Renderer::ReloadShaders()
 {
     shadersDirty_ = true;
@@ -486,13 +502,17 @@ unsigned Renderer::GetNumGeometries(bool allViews) const
 {
     unsigned numGeometries = 0;
     unsigned lastView = allViews ? views_.Size() : 1;
-    
+
     for (unsigned i = 0; i < lastView; ++i)
     {
-        if (views_[i])
-            numGeometries += views_[i]->GetGeometries().Size();
+        // Use the source view's statistics if applicable
+        View* view = GetActualView(views_[i]);
+        if (!view)
+            continue;
+
+        numGeometries += view->GetGeometries().Size();
     }
-    
+
     return numGeometries;
 }
 
@@ -500,13 +520,16 @@ unsigned Renderer::GetNumLights(bool allViews) const
 {
     unsigned numLights = 0;
     unsigned lastView = allViews ? views_.Size() : 1;
-    
+
     for (unsigned i = 0; i < lastView; ++i)
     {
-        if (views_[i])
-            numLights += views_[i]->GetLights().Size();
+        View* view = GetActualView(views_[i]);
+        if (!view)
+            continue;
+
+        numLights += view->GetLights().Size();
     }
-    
+
     return numLights;
 }
 
@@ -514,21 +537,21 @@ unsigned Renderer::GetNumShadowMaps(bool allViews) const
 {
     unsigned numShadowMaps = 0;
     unsigned lastView = allViews ? views_.Size() : 1;
-    
+
     for (unsigned i = 0; i < lastView; ++i)
     {
-        if (!views_[i])
+        View* view = GetActualView(views_[i]);
+        if (!view)
             continue;
-        
-        const Vector<LightBatchQueue>& lightQueues = views_[i]->GetLightQueues();
-        
+
+        const Vector<LightBatchQueue>& lightQueues = view->GetLightQueues();
         for (Vector<LightBatchQueue>::ConstIterator i = lightQueues.Begin(); i != lightQueues.End(); ++i)
         {
             if (i->shadowMap_)
                 ++numShadowMaps;
         }
     }
-    
+
     return numShadowMaps;
 }
 
@@ -536,27 +559,31 @@ unsigned Renderer::GetNumOccluders(bool allViews) const
 {
     unsigned numOccluders = 0;
     unsigned lastView = allViews ? views_.Size() : 1;
-    
+
     for (unsigned i = 0; i < lastView; ++i)
     {
-        if (views_[i])
-            numOccluders += views_[i]->GetOccluders().Size();
+        View* view = GetActualView(views_[i]);
+        if (!view)
+            continue;
+
+        numOccluders += view->GetNumActiveOccluders();
     }
-    
+
     return numOccluders;
 }
 
 void Renderer::Update(float timeStep)
 {
-    PROFILE(UpdateViews);
-    
+    URHO3D_PROFILE(UpdateViews);
+
     views_.Clear();
-    
+    preparedViews_.Clear();
+
     // If device lost, do not perform update. This is because any dynamic vertex/index buffer updates happen already here,
     // and if the device is lost, the updates queue up, causing memory use to rise constantly
     if (!graphics_ || !graphics_->IsInitialized() || graphics_->IsDeviceLost())
         return;
-    
+
     // Set up the frameinfo structure for this frame
     frame_.frameNumber_ = GetSubsystem<Time>()->GetFrameNumber();
     frame_.timeStep_ = timeStep;
@@ -564,48 +591,48 @@ void Renderer::Update(float timeStep)
     numShadowCameras_ = 0;
     numOcclusionBuffers_ = 0;
     updatedOctrees_.Clear();
-    
+
     // Reload shaders now if needed
     if (shadersDirty_)
         LoadShaders();
-    
+
     // Queue update of the main viewports. Use reverse order, as rendering order is also reverse
     // to render auxiliary views before dependant main views
     for (unsigned i = viewports_.Size() - 1; i < viewports_.Size(); --i)
         QueueViewport(0, viewports_[i]);
-    
+
     // Gather other render surfaces that are autoupdated
     SendEvent(E_RENDERSURFACEUPDATE);
-    
+
     // Process gathered views. This may queue further views (render surfaces that are only updated when visible)
     for (unsigned i = 0; i < queuedViewports_.Size(); ++i)
     {
         WeakPtr<RenderSurface>& renderTarget = queuedViewports_[i].first_;
         WeakPtr<Viewport>& viewport = queuedViewports_[i].second_;
-        
+
         // Null pointer means backbuffer view. Differentiate between that and an expired rendersurface
         if ((renderTarget.NotNull() && renderTarget.Expired()) || viewport.Expired())
             continue;
-        
+
         // (Re)allocate the view structure if necessary
         if (!viewport->GetView() || resetViews_)
             viewport->AllocateView();
-        
+
         View* view = viewport->GetView();
         assert(view);
         // Check if view can be defined successfully (has either valid scene, camera and octree, or no scene passes)
         if (!view->Define(renderTarget, viewport))
             continue;
-        
+
         views_.Push(WeakPtr<View>(view));
-        
+
         const IntRect& viewRect = viewport->GetRect();
         Scene* scene = viewport->GetScene();
         if (!scene)
             continue;
-        
+
         Octree* octree = scene->GetComponent<Octree>();
-        
+
         // Update octree (perform early update for drawables which need that, and reinsert moved drawables.)
         // However, if the same scene is viewed from multiple cameras, update the octree only once
         if (!updatedOctrees_.Contains(octree))
@@ -616,19 +643,19 @@ void Renderer::Update(float timeStep)
                 frame_.viewSize_ = IntVector2(graphics_->GetWidth(), graphics_->GetHeight());
             octree->Update(frame_);
             updatedOctrees_.Insert(octree);
-            
+
             // Set also the view for the debug renderer already here, so that it can use culling
             /// \todo May result in incorrect debug geometry culling if the same scene is drawn from multiple viewports
             DebugRenderer* debug = scene->GetComponent<DebugRenderer>();
             if (debug)
                 debug->SetView(viewport->GetCamera());
         }
-        
+
         // Update view. This may queue further views. View will send update begin/end events once its state is set
         ResetShadowMapAllocations(); // Each view can reuse the same shadow maps
         view->Update(frame_);
     }
-    
+
     // Reset update flag from queued render surfaces. At this point no new views can be added on this frame
     for (unsigned i = 0; i < queuedViewports_.Size(); ++i)
     {
@@ -636,7 +663,7 @@ void Renderer::Update(float timeStep)
         if (renderTarget)
             renderTarget->WasUpdated();
     }
-    
+
     queuedViewports_.Clear();
     resetViews_ = false;
 }
@@ -645,16 +672,16 @@ void Renderer::Render()
 {
     // Engine does not render when window is closed or device is lost
     assert(graphics_ && graphics_->IsInitialized() && !graphics_->IsDeviceLost());
-    
-    PROFILE(RenderViews);
-    
+
+    URHO3D_PROFILE(RenderViews);
+
     // If the indirection textures have lost content (OpenGL mode only), restore them now
     if (faceSelectCubeMap_ && faceSelectCubeMap_->IsDataLost())
         SetIndirectionTextureData();
-    
+
     graphics_->SetDefaultTextureFilterMode(textureFilterMode_);
-    graphics_->SetTextureAnisotropy(textureAnisotropy_);
-    
+    graphics_->SetTextureAnisotropy((unsigned)textureAnisotropy_);
+
     // If no views, just clear the screen
     if (views_.Empty())
     {
@@ -665,7 +692,7 @@ void Renderer::Render()
         graphics_->SetStencilTest(false);
         graphics_->ResetRenderTargets();
         graphics_->Clear(CLEAR_COLOR | CLEAR_DEPTH | CLEAR_STENCIL, defaultZone_->GetFogColor());
-        
+
         numPrimitives_ = 0;
         numBatches_ = 0;
     }
@@ -676,11 +703,11 @@ void Renderer::Render()
         {
             if (!views_[i])
                 continue;
-            
+
             using namespace BeginViewRender;
-            
+
             RenderSurface* renderTarget = views_[i]->GetRenderTarget();
-            
+
             VariantMap& eventData = GetEventDataMap();
             eventData[P_VIEW] = views_[i];
             eventData[P_SURFACE] = renderTarget;
@@ -688,31 +715,31 @@ void Renderer::Render()
             eventData[P_SCENE] = views_[i]->GetScene();
             eventData[P_CAMERA] = views_[i]->GetCamera();
             SendEvent(E_BEGINVIEWRENDER, eventData);
-            
+
             // Screen buffers can be reused between views, as each is rendered completely
             PrepareViewRender();
             views_[i]->Render();
-            
+
             SendEvent(E_ENDVIEWRENDER, eventData);
         }
-        
+
         // Copy the number of batches & primitives from Graphics so that we can account for 3D geometry only
         numPrimitives_ = graphics_->GetNumPrimitives();
         numBatches_ = graphics_->GetNumBatches();
     }
-    
+
     // Remove unused occlusion buffers and renderbuffers
     RemoveUnusedBuffers();
 }
 
 void Renderer::DrawDebugGeometry(bool depthTest)
 {
-    PROFILE(RendererDrawDebug);
-    
+    URHO3D_PROFILE(RendererDrawDebug);
+
     /// \todo Because debug geometry is per-scene, if two cameras show views of the same area, occlusion is not shown correctly
     HashSet<Drawable*> processedGeometries;
     HashSet<Light*> processedLights;
-    
+
     for (unsigned i = 0; i < views_.Size(); ++i)
     {
         View* view = views_[i];
@@ -724,11 +751,11 @@ void Renderer::DrawDebugGeometry(bool depthTest)
         DebugRenderer* debug = octree->GetComponent<DebugRenderer>();
         if (!debug || !debug->IsEnabledEffective())
             continue;
-        
+
         // Process geometries / lights only once
         const PODVector<Drawable*>& geometries = view->GetGeometries();
         const PODVector<Light*>& lights = view->GetLights();
-        
+
         for (unsigned i = 0; i < geometries.Size(); ++i)
         {
             if (!processedGeometries.Contains(geometries[i]))
@@ -753,7 +780,7 @@ void Renderer::QueueRenderSurface(RenderSurface* renderTarget)
     if (renderTarget)
     {
         unsigned numViewports = renderTarget->GetNumViewports();
-        
+
         for (unsigned i = 0; i < numViewports; ++i)
             QueueViewport(renderTarget, renderTarget->GetViewport(i));
     }
@@ -779,7 +806,7 @@ Geometry* Renderer::GetLightGeometry(Light* light)
     case LIGHT_POINT:
         return pointLightGeometry_;
     }
-    
+
     return 0;
 }
 
@@ -800,7 +827,7 @@ Texture2D* Renderer::GetShadowMap(Light* light, Camera* camera, unsigned viewWid
         const Matrix4& projection = camera->GetProjection();
         BoundingBox lightBox;
         float lightPixels;
-        
+
         if (type == LIGHT_POINT)
         {
             // Calculate point light pixel size from the projection of its diagonal
@@ -814,25 +841,25 @@ Texture2D* Renderer::GetShadowMap(Light* light, Camera* camera, unsigned viewWid
             Frustum lightFrustum = light->GetFrustum().Transformed(view);
             lightBox.Define(&lightFrustum.vertices_[4], 4);
         }
-        
+
         Vector2 projectionSize = lightBox.Projected(projection).Size();
         lightPixels = Max(0.5f * (float)viewWidth * projectionSize.x_, 0.5f * (float)viewHeight * projectionSize.y_);
-        
+
         // Clamp pixel amount to a sufficient minimum to avoid self-shadowing artifacts due to loss of precision
         if (lightPixels < SHADOW_MIN_PIXELS)
             lightPixels = SHADOW_MIN_PIXELS;
-        
+
         size = Min(size, lightPixels);
     }
-    
+
     /// \todo Allow to specify maximum shadow maps per resolution, as smaller shadow maps take less memory
     int width = NextPowerOfTwo((unsigned)size);
     int height = width;
-    
+
     // Adjust the size for directional or point light shadow map atlases
     if (type == LIGHT_DIRECTIONAL)
     {
-        unsigned numSplits = light->GetNumShadowSplits();
+        unsigned numSplits = (unsigned)light->GetNumShadowSplits();
         if (numSplits > 1)
             width *= 2;
         if (numSplits > 2)
@@ -843,7 +870,7 @@ Texture2D* Renderer::GetShadowMap(Light* light, Camera* camera, unsigned viewWid
         width *= 2;
         height *= 3;
     }
-    
+
     int searchKey = (width << 16) | height;
     if (shadowMaps_.Contains(searchKey))
     {
@@ -863,16 +890,16 @@ Texture2D* Renderer::GetShadowMap(Light* light, Camera* camera, unsigned viewWid
                 return 0;
         }
     }
-    
-    unsigned shadowMapFormat = (shadowQuality_ & SHADOWQUALITY_LOW_24BIT) ? graphics_->GetHiresShadowMapFormat() :
-        graphics_->GetShadowMapFormat();
+
+    unsigned shadowMapFormat =
+        (shadowQuality_ & SHADOWQUALITY_LOW_24BIT) ? graphics_->GetHiresShadowMapFormat() : graphics_->GetShadowMapFormat();
     if (!shadowMapFormat)
         return 0;
-    
+
     SharedPtr<Texture2D> newShadowMap(new Texture2D(context_));
     int retries = 3;
     unsigned dummyColorFormat = graphics_->GetDummyColorFormat();
-    
+
     while (retries)
     {
         if (!newShadowMap->SetSize(width, height, shadowMapFormat, TEXTURE_DEPTHSTENCIL))
@@ -883,16 +910,16 @@ Texture2D* Renderer::GetShadowMap(Light* light, Camera* camera, unsigned viewWid
         }
         else
         {
-            #ifndef GL_ES_VERSION_2_0
+#ifndef GL_ES_VERSION_2_0
             // OpenGL (desktop) and D3D11: shadow compare mode needs to be specifically enabled for the shadow map
             newShadowMap->SetFilterMode(FILTER_BILINEAR);
             newShadowMap->SetShadowCompare(true);
-            #endif
-            #ifndef URHO3D_OPENGL
+#endif
+#ifndef URHO3D_OPENGL
             // Direct3D9: when shadow compare must be done manually, use nearest filtering so that the filtering of point lights
             // and other shadowed lights matches
             newShadowMap->SetFilterMode(graphics_->GetHardwareShadowSupport() ? FILTER_BILINEAR : FILTER_NEAREST);
-            #endif
+#endif
             // Create dummy color texture for the shadow map if necessary: Direct3D9, or OpenGL when working around an OS X +
             // Intel driver bug
             if (dummyColorFormat)
@@ -909,19 +936,20 @@ Texture2D* Renderer::GetShadowMap(Light* light, Camera* camera, unsigned viewWid
             break;
         }
     }
-    
+
     // If failed to set size, store a null pointer so that we will not retry
     if (!retries)
         newShadowMap.Reset();
-    
+
     shadowMaps_[searchKey].Push(newShadowMap);
     if (!reuseShadowMaps_)
         shadowMapAllocations_[searchKey].Push(light);
-    
+
     return newShadowMap;
 }
 
-Texture* Renderer::GetScreenBuffer(int width, int height, unsigned format, bool cubemap, bool filtered, bool srgb, unsigned persistentKey)
+Texture* Renderer::GetScreenBuffer(int width, int height, unsigned format, bool cubemap, bool filtered, bool srgb,
+    unsigned persistentKey)
 {
     bool depthStencil = (format == Graphics::GetDepthStencilFormat()) || (format == Graphics::GetReadableDepthFormat());
     if (depthStencil)
@@ -929,7 +957,7 @@ Texture* Renderer::GetScreenBuffer(int width, int height, unsigned format, bool 
         filtered = false;
         srgb = false;
     }
-    
+
     if (cubemap)
         height = width;
 
@@ -940,20 +968,20 @@ Texture* Renderer::GetScreenBuffer(int width, int height, unsigned format, bool 
         searchKey |= 0x4000000000000000LL;
     if (cubemap)
         searchKey |= 0x2000000000000000LL;
-    
+
     // Add persistent key if defined
     if (persistentKey)
         searchKey += ((long long)persistentKey << 32);
-    
+
     // If new size or format, initialize the allocation stats
     if (screenBuffers_.Find(searchKey) == screenBuffers_.End())
         screenBufferAllocations_[searchKey] = 0;
-    
+
     // Reuse depth-stencil buffers whenever the size matches, instead of allocating new
     unsigned allocations = screenBufferAllocations_[searchKey];
-    if(!depthStencil)
+    if (!depthStencil)
         ++screenBufferAllocations_[searchKey];
-    
+
     if (allocations >= screenBuffers_[searchKey].Size())
     {
         SharedPtr<Texture> newBuffer;
@@ -963,7 +991,7 @@ Texture* Renderer::GetScreenBuffer(int width, int height, unsigned format, bool 
             SharedPtr<Texture2D> newTex2D(new Texture2D(context_));
             newTex2D->SetSize(width, height, format, depthStencil ? TEXTURE_DEPTHSTENCIL : TEXTURE_RENDERTARGET);
 
-            #ifdef URHO3D_OPENGL
+#ifdef URHO3D_OPENGL
             // OpenGL hack: clear persistent floating point screen buffers to ensure the initial contents aren't illegal (NaN)?
             // Otherwise eg. the AutoExposure post process will not work correctly
             if (persistentKey && Texture::GetDataType(format) == GL_FLOAT)
@@ -975,7 +1003,7 @@ Texture* Renderer::GetScreenBuffer(int width, int height, unsigned format, bool 
                 graphics_->SetViewport(IntRect(0, 0, width, height));
                 graphics_->Clear(CLEAR_COLOR);
             }
-            #endif
+#endif
 
             newBuffer = StaticCast<Texture>(newTex2D);
         }
@@ -986,13 +1014,13 @@ Texture* Renderer::GetScreenBuffer(int width, int height, unsigned format, bool 
 
             newBuffer = StaticCast<Texture>(newTexCube);
         }
-        
+
         newBuffer->SetSRGB(srgb);
         newBuffer->SetFilterMode(filtered ? FILTER_BILINEAR : FILTER_NEAREST);
         newBuffer->ResetUseTimer();
         screenBuffers_[searchKey].Push(newBuffer);
 
-        LOGDEBUG("Allocated new screen buffer size " + String(width) + "x" + String(height) + " format " + String(format));
+        URHO3D_LOGDEBUG("Allocated new screen buffer size " + String(width) + "x" + String(height) + " format " + String(format));
         return newBuffer;
     }
     else
@@ -1011,8 +1039,8 @@ RenderSurface* Renderer::GetDepthStencil(int width, int height)
         return 0;
     else
     {
-        return static_cast<Texture2D*>(GetScreenBuffer(width, height, Graphics::GetDepthStencilFormat(), false, false, false))->
-            GetRenderSurface();
+        return static_cast<Texture2D*>(GetScreenBuffer(width, height, Graphics::GetDepthStencilFormat(), false, false,
+            false))->GetRenderSurface();
     }
 }
 
@@ -1024,22 +1052,22 @@ OcclusionBuffer* Renderer::GetOcclusionBuffer(Camera* camera)
         SharedPtr<OcclusionBuffer> newBuffer(new OcclusionBuffer(context_));
         occlusionBuffers_.Push(newBuffer);
     }
-    
+
     int width = occlusionBufferSize_;
     int height = (int)((float)occlusionBufferSize_ / camera->GetAspectRatio() + 0.5f);
-    
+
     OcclusionBuffer* buffer = occlusionBuffers_[numOcclusionBuffers_++];
-    buffer->SetSize(width, height);
+    buffer->SetSize(width, height, threadedOcclusion_);
     buffer->SetView(camera);
     buffer->ResetUseTimer();
-    
+
     return buffer;
 }
 
 Camera* Renderer::GetShadowCamera()
 {
     MutexLock lock(rendererMutex_);
-    
+
     assert(numShadowCameras_ <= shadowCameraNodes_.Size());
     if (numShadowCameras_ == shadowCameraNodes_.Size())
     {
@@ -1047,12 +1075,32 @@ Camera* Renderer::GetShadowCamera()
         newNode->CreateComponent<Camera>();
         shadowCameraNodes_.Push(newNode);
     }
-    
+
     Camera* camera = shadowCameraNodes_[numShadowCameras_++]->GetComponent<Camera>();
     camera->SetOrthographic(false);
     camera->SetZoom(1.0f);
-    
+
     return camera;
+}
+
+void Renderer::StorePreparedView(View* view, Camera* camera)
+{
+    if (view && camera)
+        preparedViews_[camera] = view;
+}
+
+View* Renderer::GetPreparedView(Camera* camera)
+{
+    HashMap<Camera*, WeakPtr<View> >::Iterator i = preparedViews_.Find(camera);
+    return i != preparedViews_.End() ? i->second_ : (View*)0;
+}
+
+View* Renderer::GetActualView(View* view)
+{
+    if (view && view->GetSourceView())
+        return view->GetSourceView();
+    else
+        return view;
 }
 
 void Renderer::SetBatchShaders(Batch& batch, Technique* tech, bool allowShadows)
@@ -1061,26 +1109,25 @@ void Renderer::SetBatchShaders(Batch& batch, Technique* tech, bool allowShadows)
     Pass* pass = batch.pass_;
     Vector<SharedPtr<ShaderVariation> >& vertexShaders = pass->GetVertexShaders();
     Vector<SharedPtr<ShaderVariation> >& pixelShaders = pass->GetPixelShaders();
-    if (!vertexShaders.Size() || !pixelShaders.Size() || pass->GetShadersLoadedFrameNumber() !=
-        shadersChangedFrameNumber_)
+    if (!vertexShaders.Size() || !pixelShaders.Size() || pass->GetShadersLoadedFrameNumber() != shadersChangedFrameNumber_)
     {
         // First release all previous shaders, then load
         pass->ReleaseShaders();
         LoadPassShaders(pass);
     }
-    
+
     // Make sure shaders are loaded now
     if (vertexShaders.Size() && pixelShaders.Size())
     {
         bool heightFog = batch.zone_ && batch.zone_->GetHeightFog();
-        
+
         // If instancing is not supported, but was requested, choose static geometry vertex shader instead
         if (batch.geometryType_ == GEOM_INSTANCED && !GetDynamicInstancing())
             batch.geometryType_ = GEOM_STATIC;
-        
+
         if (batch.geometryType_ == GEOM_STATIC_NOINSTANCING)
             batch.geometryType_ = GEOM_STATIC;
-        
+
         //  Check whether is a pixel lit forward pass. If not, there is only one pixel shader
         if (pass->GetLightingMode() == LIGHTING_PERPIXEL)
         {
@@ -1092,12 +1139,12 @@ void Renderer::SetBatchShaders(Batch& batch, Technique* tech, bool allowShadows)
                 batch.pixelShader_ = 0;
                 return;
             }
-            
+
             Light* light = lightQueue->light_;
             unsigned vsi = 0;
             unsigned psi = 0;
             vsi = batch.geometryType_ * MAX_LIGHT_VS_VARIATIONS;
-            
+
             bool materialHasSpecular = batch.material_ ? batch.material_->GetSpecular() : true;
             if (specularLighting_ && light->GetSpecularIntensity() > 0.0f && materialHasSpecular)
                 psi += LPS_SPEC;
@@ -1106,18 +1153,18 @@ void Renderer::SetBatchShaders(Batch& batch, Technique* tech, bool allowShadows)
                 vsi += LVS_SHADOW;
                 psi += LPS_SHADOW;
             }
-            
+
             switch (light->GetLightType())
             {
             case LIGHT_DIRECTIONAL:
                 vsi += LVS_DIR;
                 break;
-                    
+
             case LIGHT_SPOT:
                 psi += LPS_SPOT;
                 vsi += LVS_SPOT;
                 break;
-                
+
             case LIGHT_POINT:
                 if (light->GetShapeTexture())
                     psi += LPS_POINTMASK;
@@ -1126,10 +1173,10 @@ void Renderer::SetBatchShaders(Batch& batch, Technique* tech, bool allowShadows)
                 vsi += LVS_POINT;
                 break;
             }
-            
+
             if (heightFog)
                 psi += MAX_LIGHT_PS_VARIATIONS;
-            
+
             batch.vertexShader_ = vertexShaders[vsi];
             batch.pixelShader_ = pixelShaders[psi];
         }
@@ -1141,7 +1188,7 @@ void Renderer::SetBatchShaders(Batch& batch, Technique* tech, bool allowShadows)
                 unsigned numVertexLights = 0;
                 if (batch.lightQueue_)
                     numVertexLights = batch.lightQueue_->vertexLights_.Size();
-                
+
                 unsigned vsi = batch.geometryType_ * MAX_VERTEXLIGHT_VS_VARIATIONS + numVertexLights;
                 batch.vertexShader_ = vertexShaders[vsi];
             }
@@ -1150,40 +1197,41 @@ void Renderer::SetBatchShaders(Batch& batch, Technique* tech, bool allowShadows)
                 unsigned vsi = batch.geometryType_;
                 batch.vertexShader_ = vertexShaders[vsi];
             }
-            
+
             batch.pixelShader_ = pixelShaders[heightFog ? 1 : 0];
         }
     }
-    
+
     // Log error if shaders could not be assigned, but only once per technique
     if (!batch.vertexShader_ || !batch.pixelShader_)
     {
         if (!shaderErrorDisplayed_.Contains(tech))
         {
             shaderErrorDisplayed_.Insert(tech);
-            LOGERROR("Technique " + tech->GetName() + " has missing shaders");
+            URHO3D_LOGERROR("Technique " + tech->GetName() + " has missing shaders");
         }
     }
 }
 
-void Renderer::SetLightVolumeBatchShaders(Batch& batch, const String& vsName, const String& psName, const String& vsDefines, const String& psDefines)
+void Renderer::SetLightVolumeBatchShaders(Batch& batch, Camera* camera, const String& vsName, const String& psName, const String& vsDefines,
+    const String& psDefines)
 {
     assert(deferredLightPSVariations_.Size());
-    
+
     unsigned vsi = DLVS_NONE;
     unsigned psi = DLPS_NONE;
     Light* light = batch.lightQueue_->light_;
-    
+
     switch (light->GetLightType())
     {
     case LIGHT_DIRECTIONAL:
         vsi += DLVS_DIR;
         break;
-        
+
     case LIGHT_SPOT:
         psi += DLPS_SPOT;
         break;
-        
+
     case LIGHT_POINT:
         if (light->GetShapeTexture())
             psi += DLPS_POINTMASK;
@@ -1191,19 +1239,19 @@ void Renderer::SetLightVolumeBatchShaders(Batch& batch, const String& vsName, co
             psi += DLPS_POINT;
         break;
     }
-    
+
     if (batch.lightQueue_->shadowMap_)
         psi += DLPS_SHADOW;
-    
+
     if (specularLighting_ && light->GetSpecularIntensity() > 0.0f)
         psi += DLPS_SPEC;
-    
-    if (batch.camera_->IsOrthographic())
+
+    if (camera->IsOrthographic())
     {
         vsi += DLVS_ORTHO;
         psi += DLPS_ORTHO;
     }
-    
+
     if (vsDefines.Length())
         batch.vertexShader_ = graphics_->GetShader(VS, vsName, deferredLightVSVariations[vsi] + vsDefines);
     else
@@ -1225,7 +1273,7 @@ void Renderer::SetCullMode(CullMode mode, Camera* camera)
         else if (mode == CULL_CCW)
             mode = CULL_CW;
     }
-    
+
     graphics_->SetCullMode(mode);
 }
 
@@ -1233,24 +1281,24 @@ bool Renderer::ResizeInstancingBuffer(unsigned numInstances)
 {
     if (!instancingBuffer_ || !dynamicInstancing_)
         return false;
-    
+
     unsigned oldSize = instancingBuffer_->GetVertexCount();
     if (numInstances <= oldSize)
         return true;
-    
+
     unsigned newSize = INSTANCING_BUFFER_DEFAULT_SIZE;
     while (newSize < numInstances)
         newSize <<= 1;
-    
+
     if (!instancingBuffer_->SetSize(newSize, INSTANCING_BUFFER_MASK, true))
     {
-        LOGERROR("Failed to resize instancing buffer to " + String(newSize));
+        URHO3D_LOGERROR("Failed to resize instancing buffer to " + String(newSize));
         // If failed, try to restore the old size
         instancingBuffer_->SetSize(oldSize, INSTANCING_BUFFER_MASK, true);
         return false;
     }
-    
-    LOGDEBUG("Resized instancing buffer to " + String(newSize));
+
+    URHO3D_LOGDEBUG("Resized instancing buffer to " + String(newSize));
     return true;
 }
 
@@ -1283,32 +1331,32 @@ void Renderer::OptimizeLightByStencil(Light* light, Camera* camera)
             graphics_->SetStencilTest(false);
             return;
         }
-        
+
         Geometry* geometry = GetLightGeometry(light);
         const Matrix3x4& view = camera->GetView();
         const Matrix4& projection = camera->GetProjection();
         Vector3 cameraPos = camera->GetNode()->GetWorldPosition();
         float lightDist;
-        
+
         if (type == LIGHT_POINT)
             lightDist = Sphere(light->GetNode()->GetWorldPosition(), light->GetRange() * 1.25f).Distance(cameraPos);
         else
             lightDist = light->GetFrustum().Distance(cameraPos);
-        
+
         // If the camera is actually inside the light volume, do not draw to stencil as it would waste fillrate
         if (lightDist < M_EPSILON)
         {
             graphics_->SetStencilTest(false);
             return;
         }
-        
+
         // If the stencil value has wrapped, clear the whole stencil first
         if (!lightStencilValue_)
         {
             graphics_->Clear(CLEAR_STENCIL);
             lightStencilValue_ = 1;
         }
-        
+
         // If possible, render the stencil volume front faces. However, close to the near clip plane render back faces instead
         // to avoid clipping.
         if (lightDist < camera->GetNearClip() * 2.0f)
@@ -1321,20 +1369,20 @@ void Renderer::OptimizeLightByStencil(Light* light, Camera* camera)
             SetCullMode(CULL_CCW, camera);
             graphics_->SetDepthTest(CMP_LESSEQUAL);
         }
-        
+
         graphics_->SetColorWrite(false);
         graphics_->SetDepthWrite(false);
         graphics_->SetStencilTest(true, CMP_ALWAYS, OP_REF, OP_KEEP, OP_KEEP, lightStencilValue_);
         graphics_->SetShaders(graphics_->GetShader(VS, "Stencil"), graphics_->GetShader(PS, "Stencil"));
         graphics_->SetShaderParameter(VSP_VIEWPROJ, projection * view);
         graphics_->SetShaderParameter(VSP_MODEL, light->GetVolumeTransform(camera));
-        
+
         geometry->Draw(graphics_);
-        
+
         graphics_->ClearTransformSources();
         graphics_->SetColorWrite(true);
         graphics_->SetStencilTest(true, CMP_EQUAL, OP_KEEP, OP_KEEP, OP_KEEP, lightStencilValue_);
-        
+
         // Increase stencil value for next light
         ++lightStencilValue_;
     }
@@ -1345,14 +1393,14 @@ void Renderer::OptimizeLightByStencil(Light* light, Camera* camera)
 const Rect& Renderer::GetLightScissor(Light* light, Camera* camera)
 {
     Pair<Light*, Camera*> combination(light, camera);
-    
+
     HashMap<Pair<Light*, Camera*>, Rect>::Iterator i = lightScissorCache_.Find(combination);
     if (i != lightScissorCache_.End())
         return i->second_;
-    
+
     const Matrix3x4& view = camera->GetView();
     const Matrix4& projection = camera->GetProjection();
-    
+
     assert(light->GetLightType() != LIGHT_DIRECTIONAL);
     if (light->GetLightType() == LIGHT_SPOT)
     {
@@ -1379,11 +1427,11 @@ void Renderer::RemoveUnusedBuffers()
     {
         if (occlusionBuffers_[i]->GetUseTimer() > MAX_BUFFER_AGE)
         {
-            LOGDEBUG("Removed unused occlusion buffer");
+            URHO3D_LOGDEBUG("Removed unused occlusion buffer");
             occlusionBuffers_.Erase(i);
         }
     }
-    
+
     for (HashMap<long long, Vector<SharedPtr<Texture> > >::Iterator i = screenBuffers_.Begin(); i != screenBuffers_.End();)
     {
         HashMap<long long, Vector<SharedPtr<Texture> > >::Iterator current = i++;
@@ -1393,7 +1441,8 @@ void Renderer::RemoveUnusedBuffers()
             Texture* buffer = buffers[j];
             if (buffer->GetUseTimer() > MAX_BUFFER_AGE)
             {
-                LOGDEBUG("Removed unused screen buffer size " + String(buffer->GetWidth()) + "x" + String(buffer->GetHeight()) + " format " + String(buffer->GetFormat()));
+                URHO3D_LOGDEBUG("Removed unused screen buffer size " + String(buffer->GetWidth()) + "x" + String(buffer->GetHeight()) +
+                         " format " + String(buffer->GetFormat()));
                 buffers.Erase(j);
             }
         }
@@ -1421,52 +1470,52 @@ void Renderer::Initialize()
 {
     Graphics* graphics = GetSubsystem<Graphics>();
     ResourceCache* cache = GetSubsystem<ResourceCache>();
-    
+
     if (!graphics || !graphics->IsInitialized() || !cache)
         return;
-    
-    PROFILE(InitRenderer);
-    
+
+    URHO3D_PROFILE(InitRenderer);
+
     graphics_ = graphics;
-    
+
     if (!graphics_->GetShadowMapFormat())
         drawShadows_ = false;
     // Validate the shadow quality level
     SetShadowQuality(shadowQuality_);
-    
+
     defaultLightRamp_ = cache->GetResource<Texture2D>("Textures/Ramp.png");
     defaultLightSpot_ = cache->GetResource<Texture2D>("Textures/Spot.png");
     defaultMaterial_ = new Material(context_);
-    
+
     defaultRenderPath_ = new RenderPath();
     defaultRenderPath_->Load(cache->GetResource<XMLFile>("RenderPaths/Forward.xml"));
-    
+
     CreateGeometries();
     CreateInstancingBuffer();
-    
+
     viewports_.Resize(1);
     ResetShadowMaps();
     ResetBuffers();
-    
+
     shadersDirty_ = true;
     initialized_ = true;
-    
-    SubscribeToEvent(E_RENDERUPDATE, HANDLER(Renderer, HandleRenderUpdate));
 
-    LOGINFO("Initialized renderer");
+    SubscribeToEvent(E_RENDERUPDATE, URHO3D_HANDLER(Renderer, HandleRenderUpdate));
+
+    URHO3D_LOGINFO("Initialized renderer");
 }
 
 void Renderer::LoadShaders()
 {
-    LOGDEBUG("Reloading shaders");
-    
+    URHO3D_LOGDEBUG("Reloading shaders");
+
     // Release old material shaders, mark them for reload
     ReleaseMaterialShaders();
     shadersChangedFrameNumber_ = GetSubsystem<Time>()->GetFrameNumber();
-    
+
     // Construct new names for deferred light volume pixel shaders based on rendering options
     deferredLightPSVariations_.Resize(MAX_DEFERRED_LIGHT_PS_VARIATIONS);
-    unsigned shadows = (graphics_->GetHardwareShadowSupport() ? 1 : 0) | (shadowQuality_ & SHADOWQUALITY_HIGH_16BIT);
+    unsigned shadows = (unsigned)((graphics_->GetHardwareShadowSupport() ? 1 : 0) | (shadowQuality_ & SHADOWQUALITY_HIGH_16BIT));
     for (unsigned i = 0; i < MAX_DEFERRED_LIGHT_PS_VARIATIONS; ++i)
     {
         deferredLightPSVariations_[i] = lightPSVariations[i % DLPS_ORTHO];
@@ -1475,50 +1524,51 @@ void Renderer::LoadShaders()
         if (i & DLPS_ORTHO)
             deferredLightPSVariations_[i] += "ORTHO ";
     }
-    
+
     shadersDirty_ = false;
 }
 
 void Renderer::LoadPassShaders(Pass* pass)
 {
-    PROFILE(LoadPassShaders);
-    
-    unsigned shadows = (graphics_->GetHardwareShadowSupport() ? 1 : 0) | (shadowQuality_ & SHADOWQUALITY_HIGH_16BIT);
-    
+    URHO3D_PROFILE(LoadPassShaders);
+
+    unsigned shadows = (unsigned)((graphics_->GetHardwareShadowSupport() ? 1 : 0) | (shadowQuality_ & SHADOWQUALITY_HIGH_16BIT));
+
     Vector<SharedPtr<ShaderVariation> >& vertexShaders = pass->GetVertexShaders();
     Vector<SharedPtr<ShaderVariation> >& pixelShaders = pass->GetPixelShaders();
-    
+
     // Forget all the old shaders
     vertexShaders.Clear();
     pixelShaders.Clear();
-    
+
     if (pass->GetLightingMode() == LIGHTING_PERPIXEL)
     {
         // Load forward pixel lit variations
         vertexShaders.Resize(MAX_GEOMETRYTYPES * MAX_LIGHT_VS_VARIATIONS);
         pixelShaders.Resize(MAX_LIGHT_PS_VARIATIONS * 2);
-        
+
         for (unsigned j = 0; j < MAX_GEOMETRYTYPES * MAX_LIGHT_VS_VARIATIONS; ++j)
         {
             unsigned g = j / MAX_LIGHT_VS_VARIATIONS;
             unsigned l = j % MAX_LIGHT_VS_VARIATIONS;
-            
-            vertexShaders[j] = graphics_->GetShader(VS, pass->GetVertexShader(), pass->GetVertexShaderDefines() + " " +
-                lightVSVariations[l] + geometryVSVariations[g]);
+
+            vertexShaders[j] = graphics_->GetShader(VS, pass->GetVertexShader(),
+                pass->GetVertexShaderDefines() + " " + lightVSVariations[l] + geometryVSVariations[g]);
         }
         for (unsigned j = 0; j < MAX_LIGHT_PS_VARIATIONS * 2; ++j)
         {
             unsigned l = j % MAX_LIGHT_PS_VARIATIONS;
             unsigned h = j / MAX_LIGHT_PS_VARIATIONS;
-            
+
             if (l & LPS_SHADOW)
             {
-                pixelShaders[j] = graphics_->GetShader(PS, pass->GetPixelShader(), pass->GetPixelShaderDefines() + " " +
-                    lightPSVariations[l] + shadowVariations[shadows] + heightFogVariations[h]);
+                pixelShaders[j] = graphics_->GetShader(PS, pass->GetPixelShader(),
+                    pass->GetPixelShaderDefines() + " " + lightPSVariations[l] + shadowVariations[shadows] +
+                    heightFogVariations[h]);
             }
             else
-                pixelShaders[j] = graphics_->GetShader(PS, pass->GetPixelShader(), pass->GetPixelShaderDefines() + " " +
-                    lightPSVariations[l] + heightFogVariations[h]);
+                pixelShaders[j] = graphics_->GetShader(PS, pass->GetPixelShader(),
+                    pass->GetPixelShaderDefines() + " " + lightPSVariations[l] + heightFogVariations[h]);
         }
     }
     else
@@ -1531,8 +1581,8 @@ void Renderer::LoadPassShaders(Pass* pass)
             {
                 unsigned g = j / MAX_VERTEXLIGHT_VS_VARIATIONS;
                 unsigned l = j % MAX_VERTEXLIGHT_VS_VARIATIONS;
-                vertexShaders[j] = graphics_->GetShader(VS, pass->GetVertexShader(), pass->GetVertexShaderDefines() + " " +
-                    vertexLightVSVariations[l] + geometryVSVariations[g]);
+                vertexShaders[j] = graphics_->GetShader(VS, pass->GetVertexShader(),
+                    pass->GetVertexShaderDefines() + " " + vertexLightVSVariations[l] + geometryVSVariations[g]);
             }
         }
         else
@@ -1540,19 +1590,19 @@ void Renderer::LoadPassShaders(Pass* pass)
             vertexShaders.Resize(MAX_GEOMETRYTYPES);
             for (unsigned j = 0; j < MAX_GEOMETRYTYPES; ++j)
             {
-                vertexShaders[j] = graphics_->GetShader(VS, pass->GetVertexShader(), pass->GetVertexShaderDefines() + " " +
-                    geometryVSVariations[j]);
+                vertexShaders[j] = graphics_->GetShader(VS, pass->GetVertexShader(),
+                    pass->GetVertexShaderDefines() + " " + geometryVSVariations[j]);
             }
         }
-        
+
         pixelShaders.Resize(2);
         for (unsigned j = 0; j < 2; ++j)
         {
-            pixelShaders[j] = graphics_->GetShader(PS, pass->GetPixelShader(), pass->GetPixelShaderDefines() + " " +
-                heightFogVariations[j]);
+            pixelShaders[j] =
+                graphics_->GetShader(PS, pass->GetPixelShader(), pass->GetPixelShaderDefines() + " " + heightFogVariations[j]);
         }
     }
-    
+
     pass->MarkShadersLoaded(shadersChangedFrameNumber_);
 }
 
@@ -1560,9 +1610,9 @@ void Renderer::ReleaseMaterialShaders()
 {
     ResourceCache* cache = GetSubsystem<ResourceCache>();
     PODVector<Material*> materials;
-    
+
     cache->GetResources<Material>(materials);
-    
+
     for (unsigned i = 0; i < materials.Size(); ++i)
         materials[i]->ReleaseShaders();
 }
@@ -1571,11 +1621,11 @@ void Renderer::ReloadTextures()
 {
     ResourceCache* cache = GetSubsystem<ResourceCache>();
     PODVector<Resource*> textures;
-    
+
     cache->GetResources(textures, Texture2D::GetTypeStatic());
     for (unsigned i = 0; i < textures.Size(); ++i)
         cache->ReloadResource(textures[i]);
-    
+
     cache->GetResources(textures, TextureCube::GetTypeStatic());
     for (unsigned i = 0; i < textures.Size(); ++i)
         cache->ReloadResource(textures[i]);
@@ -1587,55 +1637,55 @@ void Renderer::CreateGeometries()
     dlvb->SetShadowed(true);
     dlvb->SetSize(4, MASK_POSITION);
     dlvb->SetData(dirLightVertexData);
-    
+
     SharedPtr<IndexBuffer> dlib(new IndexBuffer(context_));
     dlib->SetShadowed(true);
     dlib->SetSize(6, false);
     dlib->SetData(dirLightIndexData);
-    
+
     dirLightGeometry_ = new Geometry(context_);
     dirLightGeometry_->SetVertexBuffer(0, dlvb);
     dirLightGeometry_->SetIndexBuffer(dlib);
     dirLightGeometry_->SetDrawRange(TRIANGLE_LIST, 0, dlib->GetIndexCount());
-    
+
     SharedPtr<VertexBuffer> slvb(new VertexBuffer(context_));
     slvb->SetShadowed(true);
     slvb->SetSize(8, MASK_POSITION);
     slvb->SetData(spotLightVertexData);
-    
+
     SharedPtr<IndexBuffer> slib(new IndexBuffer(context_));
     slib->SetShadowed(true);
     slib->SetSize(36, false);
     slib->SetData(spotLightIndexData);
-    
+
     spotLightGeometry_ = new Geometry(context_);
     spotLightGeometry_->SetVertexBuffer(0, slvb);
     spotLightGeometry_->SetIndexBuffer(slib);
     spotLightGeometry_->SetDrawRange(TRIANGLE_LIST, 0, slib->GetIndexCount());
-    
+
     SharedPtr<VertexBuffer> plvb(new VertexBuffer(context_));
     plvb->SetShadowed(true);
     plvb->SetSize(24, MASK_POSITION);
     plvb->SetData(pointLightVertexData);
-    
+
     SharedPtr<IndexBuffer> plib(new IndexBuffer(context_));
     plib->SetShadowed(true);
     plib->SetSize(132, false);
     plib->SetData(pointLightIndexData);
-    
+
     pointLightGeometry_ = new Geometry(context_);
     pointLightGeometry_->SetVertexBuffer(0, plvb);
     pointLightGeometry_->SetIndexBuffer(plib);
     pointLightGeometry_->SetDrawRange(TRIANGLE_LIST, 0, plib->GetIndexCount());
-    
-    #if !defined(URHO3D_OPENGL) || !defined(GL_ES_VERSION_2_0)
+
+#if !defined(URHO3D_OPENGL) || !defined(GL_ES_VERSION_2_0)
     if (graphics_->GetShadowMapFormat())
     {
         faceSelectCubeMap_ = new TextureCube(context_);
         faceSelectCubeMap_->SetNumLevels(1);
         faceSelectCubeMap_->SetSize(1, graphics_->GetRGBAFormat());
         faceSelectCubeMap_->SetFilterMode(FILTER_NEAREST);
-        
+
         indirectionCubeMap_ = new TextureCube(context_);
         indirectionCubeMap_->SetNumLevels(1);
         indirectionCubeMap_->SetSize(256, graphics_->GetRGBAFormat());
@@ -1643,53 +1693,53 @@ void Renderer::CreateGeometries()
         indirectionCubeMap_->SetAddressMode(COORD_U, ADDRESS_CLAMP);
         indirectionCubeMap_->SetAddressMode(COORD_V, ADDRESS_CLAMP);
         indirectionCubeMap_->SetAddressMode(COORD_W, ADDRESS_CLAMP);
-        
+
         SetIndirectionTextureData();
     }
-    #endif
+#endif
 }
 
 void Renderer::SetIndirectionTextureData()
 {
     unsigned char data[256 * 256 * 4];
-    
+
     for (unsigned i = 0; i < MAX_CUBEMAP_FACES; ++i)
     {
         unsigned axis = i / 2;
-        data[0] = (axis == 0) ? 255 : 0;
-        data[1] = (axis == 1) ? 255 : 0;
-        data[2] = (axis == 2) ? 255 : 0;
+        data[0] = (unsigned char)((axis == 0) ? 255 : 0);
+        data[1] = (unsigned char)((axis == 1) ? 255 : 0);
+        data[2] = (unsigned char)((axis == 2) ? 255 : 0);
         data[3] = 0;
         faceSelectCubeMap_->SetData((CubeMapFace)i, 0, 0, 0, 1, 1, data);
     }
-    
+
     for (unsigned i = 0; i < MAX_CUBEMAP_FACES; ++i)
     {
-        unsigned char faceX = (i & 1) * 255;
-        unsigned char faceY = (i / 2) * 255 / 3;
+        unsigned char faceX = (unsigned char)((i & 1) * 255);
+        unsigned char faceY = (unsigned char)((i / 2) * 255 / 3);
         unsigned char* dest = data;
         for (unsigned y = 0; y < 256; ++y)
         {
             for (unsigned x = 0; x < 256; ++x)
             {
-                #ifdef URHO3D_OPENGL
-                dest[0] = x;
-                dest[1] = 255 - y;
+#ifdef URHO3D_OPENGL
+                dest[0] = (unsigned char)x;
+                dest[1] = (unsigned char)(255 - y);
                 dest[2] = faceX;
-                dest[3] = 255 * 2 / 3 - faceY;
-                #else
-                dest[0] = x;
-                dest[1] = y;
+                dest[3] = (unsigned char)(255 * 2 / 3 - faceY);
+#else
+                dest[0] = (unsigned char)x;
+                dest[1] = (unsigned char)y;
                 dest[2] = faceX;
                 dest[3] = faceY;
-                #endif
+#endif
                 dest += 4;
             }
         }
-        
+
         indirectionCubeMap_->SetData((CubeMapFace)i, 0, 0, 0, 256, 256, data);
     }
-    
+
     faceSelectCubeMap_->ClearDataLost();
     indirectionCubeMap_->ClearDataLost();
 }
@@ -1703,7 +1753,7 @@ void Renderer::CreateInstancingBuffer()
         dynamicInstancing_ = false;
         return;
     }
-    
+
     instancingBuffer_ = new VertexBuffer(context_);
     if (!instancingBuffer_->SetSize(INSTANCING_BUFFER_DEFAULT_SIZE, INSTANCING_BUFFER_MASK, true))
     {
@@ -1737,7 +1787,7 @@ void Renderer::HandleScreenMode(StringHash eventType, VariantMap& eventData)
 void Renderer::HandleRenderUpdate(StringHash eventType, VariantMap& eventData)
 {
     using namespace RenderUpdate;
-    
+
     Update(eventData[P_TIMESTEP].GetFloat());
 }
 
