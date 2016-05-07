@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2008-2015 the Urho3D project.
+// Copyright (c) 2008-2016 the Urho3D project.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -185,6 +185,7 @@ void UIElement::RegisterObject(Context* context)
     URHO3D_ACCESSOR_ATTRIBUTE("Indent", GetIndent, SetIndent, int, 0, AM_FILE);
     URHO3D_ACCESSOR_ATTRIBUTE("Indent Spacing", GetIndentSpacing, SetIndentSpacing, int, 16, AM_FILE);
     URHO3D_ATTRIBUTE("Variables", VariantMap, vars_, Variant::emptyVariantMap, AM_FILE);
+    URHO3D_ATTRIBUTE("Tags", StringVector, tags_, Variant::emptyStringVector, AM_FILE);
 }
 
 void UIElement::ApplyAttributes()
@@ -475,21 +476,6 @@ void UIElement::OnHover(const IntVector2& position, const IntVector2& screenPosi
     hovering_ = true;
 }
 
-void UIElement::OnClickBegin(const IntVector2& position, const IntVector2& screenPosition, int button, int buttons, int qualifiers,
-    Cursor* cursor)
-{
-}
-
-void UIElement::OnClickEnd(const IntVector2& position, const IntVector2& screenPosition, int button, int buttons, int qualifiers,
-    Cursor* cursor, UIElement* beginElement)
-{
-}
-
-void UIElement::OnDoubleClick(const IntVector2& position, const IntVector2& screenPosition, int button, int buttons, int qualifiers,
-    Cursor* cursor)
-{
-}
-
 void UIElement::OnDragBegin(const IntVector2& position, const IntVector2& screenPosition, int buttons, int qualifiers,
     Cursor* cursor)
 {
@@ -526,16 +512,14 @@ bool UIElement::OnDragDropFinish(UIElement* source)
     return true;
 }
 
-void UIElement::OnWheel(int delta, int buttons, int qualifiers)
+IntVector2 UIElement::ScreenToElement(const IntVector2& screenPosition)
 {
+    return screenPosition - GetScreenPosition();
 }
 
-void UIElement::OnKey(int key, int buttons, int qualifiers)
+IntVector2 UIElement::ElementToScreen(const IntVector2& position)
 {
-}
-
-void UIElement::OnTextInput(const String& text, int buttons, int qualifiers)
-{
+    return position + GetScreenPosition();
 }
 
 bool UIElement::LoadXML(Deserializer& source)
@@ -969,6 +953,9 @@ bool UIElement::SetStyle(const String& styleName, XMLFile* file)
         defaultStyle_ = file;
     }
 
+    // Remember the effectively applied style file, either custom or default
+    appliedStyleFile_ = file;
+
     styleXPathQuery_.SetVariable("typeName", actualStyleName);
     XMLElement styleElem = file->GetRoot().SelectSinglePrepared(styleXPathQuery_);
     return styleElem && SetStyle(styleElem);
@@ -1253,8 +1240,6 @@ void UIElement::InsertChild(unsigned index, UIElement* element)
     else
         children_.Insert(children_.Begin() + index, SharedPtr<UIElement>(element));
 
-    XMLFile* previousStyleFile = element->GetDefaultStyle();
-
     element->Remove();
 
     if (sortChildren_)
@@ -1263,9 +1248,8 @@ void UIElement::InsertChild(unsigned index, UIElement* element)
     element->parent_ = this;
     element->MarkDirty();
 
-    // If child element did not already have a style file, but has specified a style name, apply it now
-    if (!previousStyleFile && !element->appliedStyle_.Empty() && GetDefaultStyle())
-        element->SetStyle(element->appliedStyle_);
+    // Apply style now if child element (and its children) has it defined
+    ApplyStyleRecursive(element);
 
     VerifyChildAlignment();
     UpdateLayout();
@@ -1400,6 +1384,42 @@ void UIElement::SetTraversalMode(TraversalMode traversalMode)
 void UIElement::SetElementEventSender(bool flag)
 {
     elementEventSender_ = flag;
+}
+
+void UIElement::SetTags(const StringVector& tags)
+{
+    RemoveAllTags();
+    AddTags(tags);
+}
+
+void UIElement::AddTag(const String& tag)
+{
+    if (tag.Empty() || HasTag(tag))
+        return;
+
+    tags_.Push(tag);
+}
+
+void UIElement::AddTags(const String& tags, char separator)
+{
+    StringVector tagVector = tags.Split(separator);
+    AddTags(tagVector);
+}
+
+void UIElement::AddTags(const StringVector& tags)
+{
+    for (unsigned i = 0; i < tags.Size(); ++i)
+        AddTag(tags[i]);
+}
+
+bool UIElement::RemoveTag(const String& tag)
+{
+    return tags_.Remove(tag);
+}
+
+void UIElement::RemoveAllTags()
+{
+    tags_.Clear();
 }
 
 float UIElement::GetDerivedOpacity() const
@@ -1565,14 +1585,38 @@ const Variant& UIElement::GetVar(const StringHash& key) const
     return i != vars_.End() ? i->second_ : Variant::EMPTY;
 }
 
-IntVector2 UIElement::ScreenToElement(const IntVector2& screenPosition)
+bool UIElement::HasTag(const String& tag) const
 {
-    return screenPosition - GetScreenPosition();
+    return tags_.Contains(tag);
 }
 
-IntVector2 UIElement::ElementToScreen(const IntVector2& position)
+void UIElement::GetChildrenWithTag(PODVector<UIElement*>& dest, const String& tag, bool recursive) const
 {
-    return position + GetScreenPosition();
+    dest.Clear();
+
+    if (!recursive)
+    {
+        for (Vector<SharedPtr<UIElement> >::ConstIterator i = children_.Begin(); i != children_.End(); ++i)
+        {
+            UIElement* element = *i;
+            if (element->HasTag(tag))
+                dest.Push(element);
+        }
+    }
+    else
+        GetChildrenWithTagRecursive(dest, tag);
+}
+
+void UIElement::GetChildrenWithTagRecursive(PODVector<UIElement*>& dest, const String& tag) const
+{
+    for (Vector<SharedPtr<UIElement> >::ConstIterator i = children_.Begin(); i != children_.End(); ++i)
+    {
+        UIElement* element = *i;
+        if (element->HasTag(tag))
+            dest.Push(element);
+        if (!element->children_.Empty())
+            element->GetChildrenWithTagRecursive(dest, tag);
+    }
 }
 
 bool UIElement::IsInside(IntVector2 position, bool isScreen)
@@ -1593,7 +1637,7 @@ bool UIElement::IsInsideCombined(IntVector2 position, bool isScreen)
 
     IntRect combined = GetCombinedScreenRect();
     return position.x_ >= combined.left_ && position.y_ >= combined.top_ && position.x_ < combined.right_ &&
-           position.y_ < combined.bottom_;
+        position.y_ < combined.bottom_;
 }
 
 IntRect UIElement::GetCombinedScreenRect()
@@ -1871,6 +1915,17 @@ void UIElement::GetChildrenRecursive(PODVector<UIElement*>& dest) const
         dest.Push(element);
         if (!element->children_.Empty())
             element->GetChildrenRecursive(dest);
+    }
+}
+
+void UIElement::ApplyStyleRecursive(UIElement* element)
+{
+    // If child element style file changes as result of being (re)parented and it has a defined style, apply it now
+    if (!element->appliedStyle_.Empty() && element->appliedStyleFile_.Get() != element->GetDefaultStyle())
+    {
+        element->SetStyle(element->appliedStyle_);
+        for (Vector<SharedPtr<UIElement> >::ConstIterator i = element->children_.Begin(); i != element->children_.End(); ++i)
+            element->ApplyStyleRecursive(*i);
     }
 }
 

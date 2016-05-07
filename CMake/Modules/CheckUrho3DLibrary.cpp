@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2008-2015 the Urho3D project.
+// Copyright (c) 2008-2016 the Urho3D project.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,12 +20,12 @@
 // THE SOFTWARE.
 //
 
-#include <Urho3D/Revision.h>
+#include <Urho3D/LibraryInfo.h>
 #include <iostream>
 
 using namespace Urho3D;
 
 int main(int argc, char* argv[])
 {
-    std::cout << GetRevision();
+    std::cout << GetRevision() << "\n" << GetCompilerDefines();
 }
